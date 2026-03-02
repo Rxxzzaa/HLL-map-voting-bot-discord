@@ -98,6 +98,26 @@ function isServerOwner(member) {
            member.permissions.has(PermissionFlagsBits.Administrator);
 }
 
+async function updatePanelMessage(interaction, payload, options = {}) {
+    const { preferMessageEdit = false } = options;
+
+    if (!preferMessageEdit && (interaction.deferred || interaction.replied)) {
+        try {
+            await interaction.editReply(payload);
+            return;
+        } catch (error) {
+            logger.warn('Failed to edit interaction reply, falling back to message edit.', error);
+        }
+    }
+
+    if (interaction.message) {
+        await interaction.message.edit(payload);
+        return;
+    }
+
+    throw new Error('Unable to update interaction panel message.');
+}
+
 // Ready event
 client.once(Events.ClientReady, async () => {
     logger.info(`Frontline Democracy logged in as ${client.user.tag}`);
@@ -343,61 +363,62 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             // Toggle map voting
             if (customId === 'mapvote_toggle' || customId.startsWith('mapvote_toggle_')) {
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                await interaction.deferUpdate();
 
+                let responseMessage = '';
                 if (service.getStatus() === 'running') {
                     await service.pause(interaction.user.username);
-                    await interaction.editReply({ content: `Map voting paused for ${serverName}` });
+                    responseMessage = `Map voting paused for ${serverName}`;
                 } else {
                     await service.resume(interaction.user.username);
-                    await interaction.editReply({ content: `Map voting started for ${serverName}` });
+                    responseMessage = `Map voting started for ${serverName}`;
                 }
 
-                // Update panel
                 const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
+                await interaction.followUp({ content: responseMessage, flags: MessageFlags.Ephemeral });
             }
 
             // Refresh panel
             else if (customId === 'mapvote_refresh' || customId.startsWith('mapvote_refresh_')) {
                 await interaction.deferUpdate();
                 const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Show whitelist panel
             else if (customId === 'mapvote_whitelist' || customId.startsWith('mapvote_whitelist_')) {
                 await interaction.deferUpdate();
                 const panel = await mapVotePanelService.buildWhitelistPanel(crcon);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Show blacklist panel
             else if (customId === 'mapvote_blacklist' || customId.startsWith('mapvote_blacklist_')) {
                 await interaction.deferUpdate();
                 const panel = await mapVotePanelService.buildBlacklistPanel(crcon);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Show history panel
             else if (customId === 'mapvote_history' || customId.startsWith('mapvote_history_')) {
                 await interaction.deferUpdate();
                 const panel = await mapVotePanelService.buildHistoryPanel(crcon);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Show settings panel
             else if (customId === 'mapvote_settings' || customId.startsWith('mapvote_settings_')) {
                 await interaction.deferUpdate();
                 const panel = mapVotePanelService.buildSettingsPanel(service);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Back to main panel
             else if (customId === 'mapvote_back') {
                 await interaction.deferUpdate();
                 const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Reset current vote
@@ -467,7 +488,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 }
 
                 const panel = await mapVotePanelService.buildWhitelistPanel(crcon, page, filter);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Settings modals
@@ -543,7 +564,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             else if (customId === 'mapvote_schedules' || customId.startsWith('mapvote_schedules_')) {
                 await interaction.deferUpdate();
                 const panel = schedulePanel.buildSchedulePanel(serverNum, serverName);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             else if (customId.startsWith('schedule_')) {
@@ -556,7 +577,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 if (customId.startsWith('schedule_back_')) {
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildSchedulePanel(schedServerNum, serverName);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Add schedule
@@ -569,37 +590,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 else if (customId.startsWith('schedule_edit_') && !customId.includes('select')) {
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleSelectPanel(schedServerNum, 'edit');
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Delete schedule - show selection
                 else if (customId.startsWith('schedule_delete_') && !customId.includes('select')) {
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleSelectPanel(schedServerNum, 'delete');
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Timezone selection
                 else if (customId.startsWith('schedule_timezone_')) {
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildTimezonePanel(schedServerNum);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Override panel
                 else if (customId.startsWith('schedule_override_') && !customId.includes('select') && !customId.includes('match') && !customId.includes('hours')) {
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildOverridePanel(schedServerNum);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Clear override
                 else if (customId.startsWith('schedule_clear_override_')) {
-                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                    await interaction.deferUpdate();
                     scheduleManager.clearOverride(schedServerNum);
-                    await interaction.editReply({ content: 'Override cleared.' });
                     const panel = schedulePanel.buildSchedulePanel(schedServerNum, serverName);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
+                    await interaction.followUp({ content: 'Override cleared.', flags: MessageFlags.Ephemeral });
                 }
 
                 // Override type: match
@@ -608,11 +629,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const scheduleId = idParts[idParts.length - 1];
                     const srvNum = parseInt(idParts[idParts.length - 2]);
 
-                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                    await interaction.deferUpdate();
                     scheduleManager.setOverride(srvNum, scheduleId, 'match');
-                    await interaction.editReply({ content: 'Override set until match ends.' });
                     const panel = schedulePanel.buildSchedulePanel(srvNum, serverName);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
+                    await interaction.followUp({ content: 'Override set until match ends.', flags: MessageFlags.Ephemeral });
                 }
 
                 // Override type: hours - show modal
@@ -631,12 +652,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const srvNum = parseInt(idParts[idParts.length - 2]);
                     const preset = idParts[2]; // all, weekdays, weekend
 
-                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                    await interaction.deferUpdate();
                     const days = scheduleManager.getDayPresets()[preset];
                     scheduleManager.updateSchedule(srvNum, scheduleId, { days });
-                    await interaction.editReply({ content: `Days set to ${preset}.` });
                     const panel = schedulePanel.buildSchedulePanel(srvNum, serverName);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
+                    await interaction.followUp({ content: `Days set to ${preset}.`, flags: MessageFlags.Ephemeral });
                 }
 
                 // Manage maps - show schedule selection
@@ -644,7 +665,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await interaction.deferUpdate();
                     const srvNum = parseInt(customId.split('_').pop());
                     const panel = schedulePanel.buildScheduleMapSelectPanel(srvNum);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
             }
 
@@ -665,7 +686,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await interaction.deferUpdate();
                     schedulePanel.setScheduleUseAllMaps(srvNum, scheduleId);
                     const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Custom selection mode
@@ -675,7 +696,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await interaction.deferUpdate();
                     await schedulePanel.initScheduleCustomWhitelist(srvNum, scheduleId, crcon);
                     const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Filter buttons
@@ -686,7 +707,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const filter = filterType === 'all' ? null : filterType;
                     await interaction.deferUpdate();
                     const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon, 0, filter);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Pagination
@@ -699,7 +720,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const newPage = customId.includes('_prev_') ? currentPage - 1 : currentPage + 1;
                     await interaction.deferUpdate();
                     const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon, newPage, filter);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Add all maps (with filter)
@@ -715,7 +736,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     schedulePanel.addAllMapsToSchedule(srvNum, scheduleId, allMaps, filter);
 
                     const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon, 0, filter);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 // Remove all maps (with filter)
@@ -731,7 +752,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     schedulePanel.removeAllMapsFromSchedule(srvNum, scheduleId, allMaps, filter);
 
                     const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon, 0, filter);
-                    await interaction.message.edit(panel);
+                    await updatePanelMessage(interaction, panel);
                 }
             }
         }
@@ -818,7 +839,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const scheduleId = interaction.values[0];
                 await interaction.deferUpdate();
                 const panel = schedulePanel.buildOverrideTypePanel(srvNum, scheduleId);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Select schedule for map management
@@ -828,7 +849,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const crcon = crconServices[srvNum] || crconServices[1];
                 await interaction.deferUpdate();
                 const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // Toggle maps in schedule whitelist
@@ -846,7 +867,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 schedulePanel.toggleScheduleWhitelistMaps(srvNum, scheduleId, mapIds, allMaps);
 
                 const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
 
             // ========== MAP VOTING SELECT MENUS ==========
@@ -884,7 +905,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 }
 
                 const panel = await mapVotePanelService.buildWhitelistPanel(crcon);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel);
             }
         }
 
@@ -910,10 +931,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     // Show day selection for new schedules
                     if (result.isNew && result.schedule) {
                         const panel = schedulePanel.buildDaySelectPanel(srvNum, result.schedule.id);
-                        await interaction.message.edit(panel);
+                        await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                     } else {
                         const panel = schedulePanel.buildSchedulePanel(srvNum);
-                        await interaction.message.edit(panel);
+                        await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                     }
                 } else {
                     await interaction.editReply({ content: `Error: ${result.error}` });
@@ -938,7 +959,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 scheduleManager.setOverride(srvNum, scheduleId, 'hours', hours);
                 await interaction.editReply({ content: `Override set for ${hours} hour(s).` });
                 const panel = schedulePanel.buildSchedulePanel(srvNum);
-                await interaction.message.edit(panel);
+                await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                 return;
             }
 
@@ -1003,7 +1024,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
             const panel = mapVotePanelService.buildSettingsPanel(service);
-            await interaction.message.edit(panel);
+            await updatePanelMessage(interaction, panel);
         }
 
     } catch (error) {
