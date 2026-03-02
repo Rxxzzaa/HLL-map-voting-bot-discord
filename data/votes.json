@@ -1,0 +1,183 @@
+{
+  "_state_voteMapActive_1": true,
+  "1_1771889838": {
+    "messageId": "1475637736273871030",
+    "gameStart": 1771889838,
+    "serverNum": 1,
+    "maps": [
+      {
+        "id": "carentan_warfare",
+        "name": "CARENTAN",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Carentan Warfare"
+      },
+      {
+        "id": "PHL_L_1944_Warfare",
+        "name": "PURPLE HEART LANE",
+        "mode": "warfare",
+        "time": "rain",
+        "pretty_name": "Purple Heart Lane Warfare (Rain)"
+      },
+      {
+        "id": "foy_warfare",
+        "name": "FOY",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Foy Warfare"
+      },
+      {
+        "id": "utahbeach_warfare",
+        "name": "UTAH BEACH",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Utah Beach Warfare"
+      }
+    ],
+    "createdAt": 1771889852593
+  },
+  "1_1771949021": {
+    "messageId": "1475885974285189161",
+    "gameStart": 1771949021,
+    "serverNum": 1,
+    "maps": [
+      {
+        "id": "kursk_warfare",
+        "name": "KURSK",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Kursk Warfare"
+      },
+      {
+        "id": "foy_warfare",
+        "name": "FOY",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Foy Warfare"
+      },
+      {
+        "id": "PHL_L_1944_Warfare",
+        "name": "PURPLE HEART LANE",
+        "mode": "warfare",
+        "time": "rain",
+        "pretty_name": "Purple Heart Lane Warfare (Rain)"
+      },
+      {
+        "id": "utahbeach_warfare",
+        "name": "UTAH BEACH",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Utah Beach Warfare"
+      }
+    ],
+    "createdAt": 1771949037188
+  },
+  "1_1772146492": {
+    "messageId": "1476714221235339284",
+    "gameStart": 1772146492,
+    "serverNum": 1,
+    "maps": [
+      {
+        "id": "utahbeach_warfare",
+        "name": "UTAH BEACH",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Utah Beach Warfare"
+      },
+      {
+        "id": "kharkov_warfare",
+        "name": "Kharkov",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Kharkov Warfare"
+      },
+      {
+        "id": "carentan_warfare",
+        "name": "CARENTAN",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Carentan Warfare"
+      },
+      {
+        "id": "PHL_L_1944_Warfare",
+        "name": "PURPLE HEART LANE",
+        "mode": "warfare",
+        "time": "rain",
+        "pretty_name": "Purple Heart Lane Warfare (Rain)"
+      }
+    ],
+    "createdAt": 1772146506711
+  },
+  "1_1772196271": {
+    "messageId": "1476923006852006075",
+    "gameStart": 1772196271,
+    "serverNum": 1,
+    "maps": [
+      {
+        "id": "omahabeach_warfare",
+        "name": "OMAHA BEACH",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Omaha Beach Warfare"
+      },
+      {
+        "id": "utahbeach_warfare",
+        "name": "UTAH BEACH",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Utah Beach Warfare"
+      },
+      {
+        "id": "stmariedumont_warfare",
+        "name": "ST MARIE DU MONT",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "St. Marie Du Mont Warfare"
+      },
+      {
+        "id": "PHL_L_1944_Warfare",
+        "name": "PURPLE HEART LANE",
+        "mode": "warfare",
+        "time": "rain",
+        "pretty_name": "Purple Heart Lane Warfare (Rain)"
+      }
+    ],
+    "createdAt": 1772196285071
+  },
+  "1_1772402685": {
+    "messageId": "1477788784488747183",
+    "gameStart": 1772402685,
+    "serverNum": 1,
+    "maps": [
+      {
+        "id": "stmereeglise_warfare",
+        "name": "SAINTE-MÈRE-ÉGLISE",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "St. Mere Eglise Warfare"
+      },
+      {
+        "id": "stmariedumont_warfare",
+        "name": "ST MARIE DU MONT",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "St. Marie Du Mont Warfare"
+      },
+      {
+        "id": "omahabeach_warfare",
+        "name": "OMAHA BEACH",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Omaha Beach Warfare"
+      },
+      {
+        "id": "carentan_warfare",
+        "name": "CARENTAN",
+        "mode": "warfare",
+        "time": "day",
+        "pretty_name": "Carentan Warfare"
+      }
+    ],
+    "createdAt": 1772402702610
+  }
+}

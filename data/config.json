@@ -1,0 +1,13 @@
+{
+  "setupComplete": true,
+  "adminRoleId": "1330462708327387176",
+  "servers": {
+    "1": {
+      "serverName": "ANZR.org | Warfare 24/7 | AUS",
+      "crconUrl": "https://anzrau.hlladmin.com",
+      "crconToken": "6ea80c0e-dad8-45a9-9c0a-9431ffa468e5",
+      "channelId": "1464826972029845650",
+      "updatedAt": "2026-01-25T12:27:12.241Z"
+    }
+  }
+}

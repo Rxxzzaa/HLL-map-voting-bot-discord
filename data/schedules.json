@@ -1,0 +1,88 @@
+{
+  "servers": {
+    "1": {
+      "timezone": "Australia/Sydney",
+      "schedules": [
+        {
+          "id": "s1769405600346",
+          "name": "PeakHours",
+          "startTime": "15:00",
+          "endTime": "23:00",
+          "days": [
+            "fri",
+            "mon",
+            "sat",
+            "sun",
+            "thu",
+            "tue",
+            "wed"
+          ],
+          "enabled": true,
+          "createdAt": "2026-01-26T05:33:20.346Z",
+          "settings": {
+            "minimumPlayers": 40,
+            "deactivatePlayers": 10,
+            "mapsPerVote": 6,
+            "nightMapCount": 1
+          },
+          "whitelist": [
+            "foy_warfare",
+            "stmariedumont_warfare",
+            "hurtgenforest_warfare_V2",
+            "utahbeach_warfare",
+            "stmereeglise_warfare",
+            "hill400_warfare",
+            "carentan_warfare",
+            "kursk_warfare",
+            "omahabeach_warfare",
+            "kharkov_warfare",
+            "driel_warfare",
+            "omahabeach_warfare_night",
+            "PHL_L_1944_Warfare",
+            "elsenbornridge_warfare_day",
+            "tobruk_warfare_day",
+            "smolensk_warfare_day",
+            "remagen_offensive_ger",
+            "remagen_offensive_us"
+          ],
+          "updatedAt": "2026-02-25T22:54:33.608Z"
+        },
+        {
+          "id": "s1769578190137",
+          "name": "Off Peak",
+          "startTime": "23:01",
+          "endTime": "14:59",
+          "days": [
+            "fri",
+            "mon",
+            "sat",
+            "sun",
+            "thu",
+            "tue",
+            "wed"
+          ],
+          "enabled": true,
+          "createdAt": "2026-01-28T05:29:50.137Z",
+          "settings": {
+            "minimumPlayers": 25,
+            "deactivatePlayers": 10,
+            "mapsPerVote": 4,
+            "nightMapCount": 1
+          },
+          "whitelist": [
+            "stmariedumont_warfare",
+            "utahbeach_warfare",
+            "stmereeglise_warfare",
+            "carentan_warfare",
+            "omahabeach_warfare",
+            "PHL_L_1944_Warfare",
+            "kharkov_warfare"
+          ],
+          "updatedAt": "2026-02-26T00:14:24.392Z"
+        }
+      ],
+      "defaultSchedule": null,
+      "activeOverride": null
+    }
+  }
+}
