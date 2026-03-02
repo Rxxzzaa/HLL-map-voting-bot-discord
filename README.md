@@ -1,0 +1,72 @@
+# Map Vote Bot
+
+Standalone Discord bot for Hell Let Loose map voting with CRCON integration.
+
+## Features
+
+- Automatic map voting when server reaches minimum players
+- Discord poll-based voting
+- CRCON whitelist integration
+- Multi-server support (up to 4 servers)
+- Admin control panel with buttons
+- Map whitelist management
+- Configurable settings
+
+## Setup
+
+1. Clone or copy this folder
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Copy `.env.example` to `.env` and fill in your values:
+   ```bash
+   cp .env.example .env
+   ```
+4. Start the bot:
+   ```bash
+   npm start
+   ```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `DISCORD_TOKEN` | Your Discord bot token |
+| `GUILD_ID` | Your Discord server ID |
+| `MAP_VOTE_CHANNEL_ID` | Channel for Server 1 map voting |
+| `ADMIN_CHANNEL_ID` | Channel for admin commands |
+| `CRCON_API_URL` | CRCON API URL for Server 1 |
+| `CRCON_API_TOKEN` | CRCON API token for Server 1 |
+
+For additional servers, add `_2`, `_3`, `_4` suffixes (e.g., `MAP_VOTE_CHANNEL_ID_2`).
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `!mapvote panel [server]` | Show the control panel |
+| `!mapvote start [server]` | Start map voting |
+| `!mapvote stop [server]` | Stop map voting |
+| `!mapvote status [server]` | Show current status |
+| `!mapvote help` | Show help |
+
+## Control Panel
+
+Use `!mapvote panel` to show an interactive control panel with:
+- Start/Pause voting
+- Whitelist management
+- Settings configuration
+- Vote/whitelist reset
+
+## Configuration
+
+Default settings can be changed via the control panel:
+- **Minimum Players**: Player count to activate voting (default: 50)
+- **Deactivate Players**: Player count to deactivate voting (default: 40)
+- **Maps Per Vote**: Number of maps in each vote (default: 8)
+- **Night Map Count**: Number of night maps per vote (default: 1)
+
+## License
+
+MIT
