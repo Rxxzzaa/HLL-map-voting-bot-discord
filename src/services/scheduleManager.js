@@ -1,0 +1,421 @@
+/**
+ * Schedule Manager Service
+ * Handles time-based map pool scheduling
+ */
+
+const fs = require('fs');
+const path = require('path');
+const logger = require('../utils/logger');
+
+const SCHEDULE_PATH = path.join(__dirname, '../../data/schedules.json');
+
+// Common timezones for dropdown
+const COMMON_TIMEZONES = [
+    { label: 'US Eastern', value: 'America/New_York' },
+    { label: 'US Central', value: 'America/Chicago' },
+    { label: 'US Mountain', value: 'America/Denver' },
+    { label: 'US Pacific', value: 'America/Los_Angeles' },
+    { label: 'UK (London)', value: 'Europe/London' },
+    { label: 'Central Europe', value: 'Europe/Berlin' },
+    { label: 'Australia Eastern', value: 'Australia/Sydney' },
+    { label: 'Australia Western', value: 'Australia/Perth' },
+    { label: 'Japan', value: 'Asia/Tokyo' },
+    { label: 'UTC', value: 'UTC' }
+];
+
+const DAY_PRESETS = {
+    all: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+    weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+    weekend: ['sat', 'sun']
+};
+
+class ScheduleManager {
+    constructor() {
+        this.data = this.loadData();
+        this.overrideTimers = new Map(); // Track override expiration timers
+    }
+
+    loadData() {
+        try {
+            const dataDir = path.dirname(SCHEDULE_PATH);
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+
+            if (fs.existsSync(SCHEDULE_PATH)) {
+                const content = fs.readFileSync(SCHEDULE_PATH, 'utf8');
+                return JSON.parse(content);
+            }
+        } catch (error) {
+            logger.error('[ScheduleManager] Error loading data:', error);
+        }
+
+        return { servers: {} };
+    }
+
+    saveData() {
+        try {
+            const dataDir = path.dirname(SCHEDULE_PATH);
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+            fs.writeFileSync(SCHEDULE_PATH, JSON.stringify(this.data, null, 2));
+            return true;
+        } catch (error) {
+            logger.error('[ScheduleManager] Error saving data:', error);
+            return false;
+        }
+    }
+
+    // Initialize server data if not exists
+    initServer(serverNum) {
+        if (!this.data.servers[serverNum]) {
+            this.data.servers[serverNum] = {
+                timezone: 'America/New_York',
+                schedules: [],
+                defaultSchedule: null,
+                activeOverride: null
+            };
+            this.saveData();
+        }
+        return this.data.servers[serverNum];
+    }
+
+    // Get server schedule config
+    getServerConfig(serverNum) {
+        return this.data.servers[serverNum] || this.initServer(serverNum);
+    }
+
+    // Set timezone
+    setTimezone(serverNum, timezone) {
+        const config = this.initServer(serverNum);
+        config.timezone = timezone;
+        this.saveData();
+        logger.info(`[ScheduleManager] Server ${serverNum} timezone set to ${timezone}`);
+        return true;
+    }
+
+    // Get current time in server's timezone
+    getCurrentTime(serverNum) {
+        const config = this.getServerConfig(serverNum);
+        const timezone = config.timezone || 'UTC';
+
+        try {
+            const now = new Date();
+            const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: timezone,
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            const dayFormatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: timezone,
+                weekday: 'short'
+            });
+
+            const timeStr = formatter.format(now);
+            const dayStr = dayFormatter.format(now).toLowerCase();
+
+            return {
+                time: timeStr, // "HH:MM"
+                day: dayStr.slice(0, 3), // "mon", "tue", etc.
+                timezone
+            };
+        } catch (error) {
+            logger.error('[ScheduleManager] Error getting current time:', error);
+            return { time: '00:00', day: 'mon', timezone: 'UTC' };
+        }
+    }
+
+    // Parse time string to minutes since midnight
+    parseTime(timeStr) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
+
+    // Check if time is within a range (handles overnight ranges)
+    isTimeInRange(currentTime, startTime, endTime) {
+        const current = this.parseTime(currentTime);
+        const start = this.parseTime(startTime);
+        const end = this.parseTime(endTime);
+
+        if (start <= end) {
+            // Normal range (e.g., 09:00 - 17:00)
+            return current >= start && current < end;
+        } else {
+            // Overnight range (e.g., 22:00 - 06:00)
+            return current >= start || current < end;
+        }
+    }
+
+    // Check if day matches schedule
+    isDayMatch(currentDay, scheduleDays) {
+        if (!scheduleDays || scheduleDays.length === 0) return true;
+        if (scheduleDays.includes('all')) return true;
+        return scheduleDays.includes(currentDay);
+    }
+
+    // Get currently active schedule (considering overrides)
+    getActiveSchedule(serverNum) {
+        const config = this.getServerConfig(serverNum);
+
+        // Check for active override
+        if (config.activeOverride) {
+            const override = config.activeOverride;
+
+            // Check if override has expired
+            if (override.expiresAt && new Date(override.expiresAt) < new Date()) {
+                this.clearOverride(serverNum);
+            } else {
+                // Find the override schedule
+                const schedule = config.schedules.find(s => s.id === override.scheduleId);
+                if (schedule) {
+                    return {
+                        ...schedule,
+                        isOverride: true,
+                        overrideType: override.type,
+                        overrideExpiresAt: override.expiresAt
+                    };
+                }
+            }
+        }
+
+        // Get current time
+        const { time, day } = this.getCurrentTime(serverNum);
+
+        // Find matching schedules (most recently created wins on overlap)
+        // Schedules are stored in order of creation, so we reverse to get most recent first
+        const matchingSchedules = [...config.schedules]
+            .reverse()
+            .filter(schedule => {
+                if (!schedule.enabled) return false;
+                if (!this.isDayMatch(day, schedule.days)) return false;
+                if (!this.isTimeInRange(time, schedule.startTime, schedule.endTime)) return false;
+                return true;
+            });
+
+        if (matchingSchedules.length > 0) {
+            return { ...matchingSchedules[0], isOverride: false };
+        }
+
+        // No matching schedule - use default (all maps)
+        return {
+            id: 'default',
+            name: 'Default',
+            isDefault: true,
+            isOverride: false,
+            settings: null, // Will use current service settings
+            whitelist: null // Will use CRCON whitelist
+        };
+    }
+
+    // Create a new schedule
+    createSchedule(serverNum, scheduleData) {
+        const config = this.initServer(serverNum);
+
+        const schedule = {
+            id: `s${Date.now()}`,
+            name: scheduleData.name || 'New Schedule',
+            startTime: scheduleData.startTime || '00:00',
+            endTime: scheduleData.endTime || '23:59',
+            days: scheduleData.days || DAY_PRESETS.all,
+            enabled: true,
+            createdAt: new Date().toISOString(),
+            settings: {
+                minimumPlayers: scheduleData.minimumPlayers ?? 40,
+                deactivatePlayers: scheduleData.deactivatePlayers ?? 10,
+                mapsPerVote: scheduleData.mapsPerVote ?? 6,
+                nightMapCount: scheduleData.nightMapCount ?? 1
+            },
+            whitelist: scheduleData.whitelist || null // null = use CRCON whitelist
+        };
+
+        config.schedules.push(schedule);
+        this.saveData();
+
+        logger.info(`[ScheduleManager] Created schedule "${schedule.name}" for server ${serverNum}`);
+        return schedule;
+    }
+
+    // Update a schedule
+    updateSchedule(serverNum, scheduleId, updates) {
+        const config = this.getServerConfig(serverNum);
+        const index = config.schedules.findIndex(s => s.id === scheduleId);
+
+        if (index === -1) {
+            return { success: false, error: 'Schedule not found' };
+        }
+
+        const schedule = config.schedules[index];
+
+        // Update allowed fields
+        if (updates.name !== undefined) schedule.name = updates.name;
+        if (updates.startTime !== undefined) schedule.startTime = updates.startTime;
+        if (updates.endTime !== undefined) schedule.endTime = updates.endTime;
+        if (updates.days !== undefined) schedule.days = updates.days;
+        if (updates.enabled !== undefined) schedule.enabled = updates.enabled;
+        if (updates.settings !== undefined) {
+            schedule.settings = { ...schedule.settings, ...updates.settings };
+        }
+        if (updates.whitelist !== undefined) schedule.whitelist = updates.whitelist;
+
+        schedule.updatedAt = new Date().toISOString();
+        this.saveData();
+
+        logger.info(`[ScheduleManager] Updated schedule "${schedule.name}" for server ${serverNum}`);
+        return { success: true, schedule };
+    }
+
+    // Delete a schedule
+    deleteSchedule(serverNum, scheduleId) {
+        const config = this.getServerConfig(serverNum);
+        const index = config.schedules.findIndex(s => s.id === scheduleId);
+
+        if (index === -1) {
+            return { success: false, error: 'Schedule not found' };
+        }
+
+        const deleted = config.schedules.splice(index, 1)[0];
+
+        // Clear override if it was using this schedule
+        if (config.activeOverride?.scheduleId === scheduleId) {
+            config.activeOverride = null;
+        }
+
+        this.saveData();
+        logger.info(`[ScheduleManager] Deleted schedule "${deleted.name}" from server ${serverNum}`);
+        return { success: true };
+    }
+
+    // Get all schedules for a server
+    getSchedules(serverNum) {
+        const config = this.getServerConfig(serverNum);
+        return config.schedules || [];
+    }
+
+    // Set override
+    setOverride(serverNum, scheduleId, type, durationHours = null) {
+        const config = this.getServerConfig(serverNum);
+
+        // Validate schedule exists (or allow 'default')
+        if (scheduleId !== 'default') {
+            const schedule = config.schedules.find(s => s.id === scheduleId);
+            if (!schedule) {
+                return { success: false, error: 'Schedule not found' };
+            }
+        }
+
+        let expiresAt = null;
+        if (type === 'hours' && durationHours) {
+            expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+        }
+
+        config.activeOverride = {
+            scheduleId,
+            type, // 'match' or 'hours'
+            durationHours,
+            expiresAt,
+            setAt: new Date().toISOString()
+        };
+
+        this.saveData();
+
+        // Set timer to clear override if hours-based
+        if (expiresAt) {
+            const timerId = setTimeout(() => {
+                this.clearOverride(serverNum);
+                logger.info(`[ScheduleManager] Override expired for server ${serverNum}`);
+            }, durationHours * 60 * 60 * 1000);
+
+            // Clear any existing timer
+            if (this.overrideTimers.has(serverNum)) {
+                clearTimeout(this.overrideTimers.get(serverNum));
+            }
+            this.overrideTimers.set(serverNum, timerId);
+        }
+
+        logger.info(`[ScheduleManager] Override set for server ${serverNum}: ${scheduleId} (${type})`);
+        return { success: true };
+    }
+
+    // Clear override
+    clearOverride(serverNum) {
+        const config = this.getServerConfig(serverNum);
+        config.activeOverride = null;
+        this.saveData();
+
+        // Clear timer if exists
+        if (this.overrideTimers.has(serverNum)) {
+            clearTimeout(this.overrideTimers.get(serverNum));
+            this.overrideTimers.delete(serverNum);
+        }
+
+        logger.info(`[ScheduleManager] Override cleared for server ${serverNum}`);
+        return { success: true };
+    }
+
+    // Called when match ends - clears 'match' type overrides
+    onMatchEnd(serverNum) {
+        const config = this.getServerConfig(serverNum);
+        if (config.activeOverride?.type === 'match') {
+            this.clearOverride(serverNum);
+            logger.info(`[ScheduleManager] Match override cleared for server ${serverNum}`);
+            return true;
+        }
+        return false;
+    }
+
+    // Get schedule settings to apply
+    getScheduleSettings(serverNum) {
+        const schedule = this.getActiveSchedule(serverNum);
+
+        return {
+            scheduleName: schedule.name,
+            scheduleId: schedule.id,
+            isDefault: schedule.isDefault || false,
+            isOverride: schedule.isOverride || false,
+            overrideType: schedule.overrideType,
+            overrideExpiresAt: schedule.overrideExpiresAt,
+            settings: schedule.settings,
+            whitelist: schedule.whitelist
+        };
+    }
+
+    // Format schedule for display
+    formatScheduleDisplay(schedule, serverNum) {
+        const config = this.getServerConfig(serverNum);
+        const { time } = this.getCurrentTime(serverNum);
+
+        let daysDisplay = 'All Days';
+        if (schedule.days) {
+            if (JSON.stringify(schedule.days.sort()) === JSON.stringify(DAY_PRESETS.weekdays.sort())) {
+                daysDisplay = 'Weekdays';
+            } else if (JSON.stringify(schedule.days.sort()) === JSON.stringify(DAY_PRESETS.weekend.sort())) {
+                daysDisplay = 'Weekend';
+            } else if (schedule.days.length < 7) {
+                daysDisplay = schedule.days.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ');
+            }
+        }
+
+        return {
+            name: schedule.name,
+            timeRange: `${schedule.startTime} - ${schedule.endTime}`,
+            days: daysDisplay,
+            enabled: schedule.enabled !== false,
+            settings: schedule.settings,
+            whitelistCount: schedule.whitelist?.length || 'All'
+        };
+    }
+
+    // Get common timezones for UI
+    getTimezones() {
+        return COMMON_TIMEZONES;
+    }
+
+    // Get day presets
+    getDayPresets() {
+        return DAY_PRESETS;
+    }
+}
+
+module.exports = new ScheduleManager();
