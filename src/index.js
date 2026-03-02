@@ -57,6 +57,9 @@ async function initializeServers() {
 
             // Create map voting service
             const service = new MapVotingService(serverNum);
+            if (typeof config.excludePlayedMapForXvotes === 'number') {
+                service.setConfig('excludeRecentMaps', config.excludePlayedMapForXvotes);
+            }
             const success = await service.initialize(client, config.channelId, crcon);
 
             if (success) {

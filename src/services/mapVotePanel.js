@@ -540,6 +540,10 @@ class MapVotePanelService {
                        `**Offensive:** ${config.modeWeights?.offensive || 0}\n` +
                        `**Skirmish:** ${config.modeWeights?.skirmish || 0}`,
                 inline: true
+            },
+            {
+                name: '♻️ Recent Map Cooldown',
+                value: `${config.excludeRecentMaps ?? 3} vote(s)`
             }
         );
 

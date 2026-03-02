@@ -38,8 +38,9 @@ Standalone Discord bot for Hell Let Loose map voting with CRCON integration.
 | `ADMIN_CHANNEL_ID` | Channel for admin commands |
 | `CRCON_API_URL` | CRCON API URL for Server 1 |
 | `CRCON_API_TOKEN` | CRCON API token for Server 1 |
+| `EXCLUDE_PLAYED_MAP_FOR_XVOTES` | How many completed votes a map must sit out before it can return (default: 3) |
 
-For additional servers, add `_2`, `_3`, `_4` suffixes (e.g., `MAP_VOTE_CHANNEL_ID_2`).
+For additional servers, add `_2`, `_3`, `_4` suffixes (e.g., `MAP_VOTE_CHANNEL_ID_2`, `EXCLUDE_PLAYED_MAP_FOR_XVOTES_2`).
 
 ## Commands
 

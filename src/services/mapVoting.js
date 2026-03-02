@@ -971,6 +971,7 @@ class MapVotingService {
             nightMapCount: this.nightMapCount,
             modeWeights: this.modeWeights,
             blacklist: this.blacklist,
+            excludeRecentMaps: this.excludeRecentMaps,
             // Schedule info
             activeSchedule: {
                 id: schedule.scheduleId,
@@ -997,6 +998,11 @@ class MapVotingService {
             case 'nightMapCount':
                 this.nightMapCount = parseInt(value) || 1;
                 break;
+            case 'excludeRecentMaps': {
+                const parsed = parseInt(value);
+                this.excludeRecentMaps = Number.isNaN(parsed) ? this.excludeRecentMaps : Math.min(Math.max(parsed, 0), 10);
+                break;
+            }
             case 'voteHeader':
                 this.voteHeader = value;
                 break;
