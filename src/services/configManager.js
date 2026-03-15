@@ -98,16 +98,26 @@ class ConfigManager {
         return this.config.servers;
     }
 
-    // Get effective config - merges .env with saved config (saved config takes priority)
+    // Get effective config - merges .env with saved config (env takes priority)
     getEffectiveServerConfig(serverNum) {
         const saved = this.getServerConfig(serverNum);
         const suffix = serverNum === 1 ? '' : `_${serverNum}`;
 
+        const normalizeEnvValue = (value) => {
+            if (value === undefined || value === null) return undefined;
+            const trimmed = String(value).trim();
+            if (!trimmed) return undefined;
+            // Allow accidentally quoted env values (e.g. "https://...")
+            return trimmed.replace(/^['"]|['"]$/g, '');
+        };
+
         // Environment variable names
-        const envUrl = process.env[`CRCON_API_URL${suffix}`];
-        const envToken = process.env[`CRCON_API_TOKEN${suffix}`];
-        const envChannel = process.env[`MAP_VOTE_CHANNEL_ID${suffix}`];
-        const envExclude = process.env[`EXCLUDE_PLAYED_MAP_FOR_XVOTES${suffix}`] ?? process.env.EXCLUDE_PLAYED_MAP_FOR_XVOTES;
+        const envUrl = normalizeEnvValue(process.env[`CRCON_API_URL${suffix}`]);
+        const envToken = normalizeEnvValue(process.env[`CRCON_API_TOKEN${suffix}`]);
+        const envChannel = normalizeEnvValue(process.env[`MAP_VOTE_CHANNEL_ID${suffix}`]);
+        const envExclude = normalizeEnvValue(
+            process.env[`EXCLUDE_PLAYED_MAP_FOR_XVOTES${suffix}`] ?? process.env.EXCLUDE_PLAYED_MAP_FOR_XVOTES
+        );
 
         const parseExcludeValue = (value) => {
             if (value === undefined || value === null) return undefined;
@@ -118,15 +128,15 @@ class ConfigManager {
 
         const excludeFromConfig = saved?.excludePlayedMapForXvotes;
         const excludeFromEnv = parseExcludeValue(envExclude);
-        const excludePlayedMapForXvotes = excludeFromConfig ?? excludeFromEnv ?? 3;
+        const excludePlayedMapForXvotes = excludeFromEnv ?? excludeFromConfig ?? 3;
 
-        // Merge: saved config overrides env
+        // Merge: env overrides saved config
         return {
-            crconUrl: saved?.crconUrl || envUrl,
-            crconToken: saved?.crconToken || envToken,
-            channelId: saved?.channelId || envChannel,
+            crconUrl: envUrl || saved?.crconUrl,
+            crconToken: envToken || saved?.crconToken,
+            channelId: envChannel || saved?.channelId,
             serverName: saved?.serverName || `Server ${serverNum}`,
-            configured: !!(saved?.crconUrl || envUrl) && !!(saved?.crconToken || envToken),
+            configured: !!(envUrl || saved?.crconUrl) && !!(envToken || saved?.crconToken),
             excludePlayedMapForXvotes
         };
     }
