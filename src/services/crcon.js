@@ -29,6 +29,47 @@ class CRCONService {
         return !!(this.baseUrl && this.apiToken);
     }
 
+    formatRequestError(error) {
+        if (!error) return 'Unknown error';
+
+        const parts = [];
+        const responseData = error.response?.data;
+
+        if (error.response) {
+            parts.push(`status=${error.response.status}`);
+            if (error.response.statusText) {
+                parts.push(`statusText=${error.response.statusText}`);
+            }
+            if (responseData?.detail) {
+                parts.push(`detail=${responseData.detail}`);
+            } else if (responseData?.message) {
+                parts.push(`apiMessage=${responseData.message}`);
+            } else if (typeof responseData === 'string' && responseData.trim()) {
+                parts.push(`apiBody=${responseData.trim().slice(0, 300)}`);
+            }
+        } else if (error.request) {
+            parts.push('no_response=true');
+        }
+
+        if (error.code) {
+            parts.push(`code=${error.code}`);
+        }
+
+        if (error.config?.method) {
+            parts.push(`method=${String(error.config.method).toUpperCase()}`);
+        }
+
+        if (error.config?.url) {
+            parts.push(`url=${error.config.url}`);
+        }
+
+        if (error.message) {
+            parts.push(`message=${error.message}`);
+        }
+
+        return parts.join(' | ') || 'Unknown request error';
+    }
+
     async get(endpoint) {
         if (!this.client) {
             throw new Error('CRCON not configured');
@@ -39,7 +80,7 @@ class CRCONService {
             const response = await this.client.get(`/api/${endpoint}`);
             return response.data;
         } catch (error) {
-            logger.error(`CRCON GET error on ${endpoint}: ${error.message}`);
+            logger.error(`[CRCON ${this.serverName}] GET ${endpoint} failed: ${this.formatRequestError(error)}`);
             throw error;
         }
     }
@@ -54,7 +95,7 @@ class CRCONService {
             const response = await this.client.post(`/api/${endpoint}`, data);
             return response.data;
         } catch (error) {
-            logger.error(`CRCON POST error on ${endpoint}: ${error.message}`);
+            logger.error(`[CRCON ${this.serverName}] POST ${endpoint} failed: ${this.formatRequestError(error)}`);
             throw error;
         }
     }
