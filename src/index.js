@@ -6,6 +6,7 @@
 
 require('dotenv').config();
 
+const http = require('http');
 const { Client, GatewayIntentBits, Partials, Events, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const logger = require('./utils/logger');
 const { CRCONService } = require('./services/crcon');
@@ -36,6 +37,56 @@ const crconServices = {};
 const mapVotePanelService = new MapVotePanelService();
 const seedingPanelService = new SeedingPanelService();
 const seedingDraftStore = new SeedingDraftStore();
+let isDiscordReady = false;
+let healthServer = null;
+
+function buildHealthPayload() {
+    return {
+        status: isDiscordReady ? 'ok' : 'starting',
+        service: 'frontline-democracy',
+        discordReady: isDiscordReady,
+        timestamp: new Date().toISOString()
+    };
+}
+
+function startHealthServer() {
+    const rawPort = process.env.PORT;
+    if (!rawPort) {
+        logger.info('PORT not set; skipping HTTP health server');
+        return null;
+    }
+
+    const port = parseInt(rawPort, 10);
+    if (Number.isNaN(port) || port <= 0) {
+        logger.warn(`Invalid PORT value "${rawPort}", skipping HTTP health server`);
+        return null;
+    }
+
+    const server = http.createServer((req, res) => {
+        const path = req.url || '/';
+
+        if (path === '/health' || path === '/ready' || path === '/') {
+            const payload = buildHealthPayload();
+            const statusCode = isDiscordReady ? 200 : 503;
+            res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify(payload));
+            return;
+        }
+
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Not found' }));
+    });
+
+    server.listen(port, '0.0.0.0', () => {
+        logger.info(`Health server listening on 0.0.0.0:${port}`);
+    });
+
+    server.on('error', (error) => {
+        logger.error('Health server error:', error);
+    });
+
+    return server;
+}
 
 // Initialize servers from config
 async function initializeServers() {
@@ -149,6 +200,7 @@ function parseBooleanStrict(raw, fieldName) {
 
 // Ready event
 client.once(Events.ClientReady, async () => {
+    isDiscordReady = true;
     logger.info(`Frontline Democracy logged in as ${client.user.tag}`);
 
     // Register slash commands
@@ -1579,6 +1631,34 @@ process.on('unhandledRejection', (error) => {
     logger.error('Unhandled rejection:', error);
 });
 
+async function gracefulShutdown(signal) {
+    logger.info(`Received ${signal}, shutting down...`);
+
+    try {
+        if (healthServer) {
+            await new Promise((resolve) => healthServer.close(resolve));
+        }
+    } catch (error) {
+        logger.warn('Error while closing health server:', error);
+    }
+
+    try {
+        client.destroy();
+    } catch (error) {
+        logger.warn('Error while closing Discord client:', error);
+    }
+
+    process.exit(0);
+}
+
+process.on('SIGTERM', () => {
+    gracefulShutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+    gracefulShutdown('SIGINT');
+});
+
 // Login
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -1586,4 +1666,5 @@ if (!token) {
     process.exit(1);
 }
 
+healthServer = startHealthServer();
 client.login(token);

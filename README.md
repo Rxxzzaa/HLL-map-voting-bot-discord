@@ -28,6 +28,21 @@ Standalone Discord bot for Hell Let Loose map voting with CRCON integration.
    npm start
    ```
 
+## Railway Deployment
+
+This project is ready for Railway with `railway.json`.
+
+1. Create a new Railway project from this repo
+2. Set environment variables in Railway:
+   - `DISCORD_TOKEN` (required)
+   - `CRCON_API_URL` and `CRCON_API_TOKEN` (or configure via setup wizard)
+   - optional multi-server vars: `CRCON_API_URL_2`, `CRCON_API_TOKEN_2`, etc.
+3. Deploy with start command `npm start`
+
+Notes:
+- Railway injects `PORT`; the bot exposes a health endpoint on `/health`.
+- Health responses return `503` until Discord login is ready, then `200`.
+
 ## Environment Variables
 
 | Variable | Description |
