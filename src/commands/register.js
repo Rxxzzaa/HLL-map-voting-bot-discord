@@ -100,15 +100,51 @@ async function registerCommands(client) {
     }
 
     const rest = new REST({ version: '10' }).setToken(token);
+    const appId = client.user.id;
+    const guildId = process.env.GUILD_ID;
 
     try {
         logger.info('Registering slash commands...');
 
         // Register globally (takes up to 1 hour to propagate)
         await rest.put(
-            Routes.applicationCommands(client.user.id),
+            Routes.applicationCommands(appId),
             { body: commands }
         );
+
+        // Also register in guild for immediate refresh in the primary server.
+        if (guildId) {
+            await rest.put(
+                Routes.applicationGuildCommands(appId, guildId),
+                { body: commands }
+            );
+        }
+
+        // Explicitly clean legacy /seed* commands if present.
+        const deleteLegacySeedCommands = async (routeFn, scopeLabel) => {
+            const existing = await rest.get(routeFn());
+            const legacy = existing.filter(cmd => /^seed/i.test(cmd.name));
+            for (const cmd of legacy) {
+                await rest.delete(routeFn(cmd.id));
+                logger.info(`Removed legacy ${scopeLabel} command /${cmd.name}`);
+            }
+        };
+
+        await deleteLegacySeedCommands(
+            (commandId) => commandId
+                ? Routes.applicationCommand(appId, commandId)
+                : Routes.applicationCommands(appId),
+            'global'
+        );
+
+        if (guildId) {
+            await deleteLegacySeedCommands(
+                (commandId) => commandId
+                    ? Routes.applicationGuildCommand(appId, guildId, commandId)
+                    : Routes.applicationGuildCommands(appId, guildId),
+                'guild'
+            );
+        }
 
         logger.info('Slash commands registered successfully');
         return true;
