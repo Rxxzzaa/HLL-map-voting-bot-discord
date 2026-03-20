@@ -184,11 +184,24 @@ class CRCONService {
         return this.get('get_seed_vip_config');
     }
 
+    normalizeBoolean(value) {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') {
+            if (value === 1) return true;
+            if (value === 0) return false;
+        }
+        if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (['true', '1', 'on', 'enabled', 'yes'].includes(normalized)) return true;
+            if (['false', '0', 'off', 'disabled', 'no'].includes(normalized)) return false;
+        }
+        return null;
+    }
+
     extractSeederVipRewardEnabled(response) {
         const result = response?.result ?? response;
         if (!result || typeof result !== 'object') return null;
-        if (typeof result.enabled === 'boolean') return result.enabled;
-        return null;
+        return this.normalizeBoolean(result.enabled);
     }
 
     async setSeederVipRewardEnabled(enabled) {
@@ -196,7 +209,11 @@ class CRCONService {
         const currentConfig = current?.result && typeof current.result === 'object'
             ? current.result
             : {};
-        const config = { ...currentConfig, enabled: !!enabled };
+        const parsedEnabled = this.normalizeBoolean(enabled);
+        if (parsedEnabled === null) {
+            throw new Error(`Invalid Seeder VIP Reward enabled value: ${enabled}`);
+        }
+        const config = { ...currentConfig, enabled: parsedEnabled };
 
         return this.post('set_seed_vip_config', {
             by: 'frontline_democracy',
