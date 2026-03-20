@@ -12,8 +12,6 @@ const logger = require('./utils/logger');
 const { CRCONService } = require('./services/crcon');
 const { MapVotingService } = require('./services/mapVoting');
 const { MapVotePanelService } = require('./services/mapVotePanel');
-const { SeedingPanelService } = require('./services/seedingPanel');
-const { SeedingDraftStore } = require('./services/seedingDraftStore');
 const configManager = require('./services/configManager');
 const setupWizard = require('./services/setupWizard');
 const scheduleManager = require('./services/scheduleManager');
@@ -35,8 +33,6 @@ const client = new Client({
 const mapVotingServices = {};
 const crconServices = {};
 const mapVotePanelService = new MapVotePanelService();
-const seedingPanelService = new SeedingPanelService();
-const seedingDraftStore = new SeedingDraftStore();
 let isDiscordReady = false;
 let healthServer = null;
 
@@ -173,31 +169,6 @@ async function updatePanelMessage(interaction, payload, options = {}) {
     throw new Error('Unable to update interaction panel message.');
 }
 
-async function buildSeedPanelForUser(crconService, serverName, serverNum, guildId, userId) {
-    const session = await seedingDraftStore.getOrCreate(crconService, guildId, userId, serverNum);
-    const summary = seedingDraftStore.getSummary(session);
-    const panel = await seedingPanelService.buildMainPanel(crconService, serverName, serverNum, session, summary);
-    return { panel, session, summary };
-}
-
-function parseBoundedInt(raw, fieldName, min, max) {
-    const parsed = parseInt(String(raw).trim(), 10);
-    if (Number.isNaN(parsed)) {
-        throw new Error(`${fieldName} must be a number`);
-    }
-    if (parsed < min || parsed > max) {
-        throw new Error(`${fieldName} must be between ${min} and ${max}`);
-    }
-    return parsed;
-}
-
-function parseBooleanStrict(raw, fieldName) {
-    const val = String(raw).trim().toLowerCase();
-    if (val === 'true') return true;
-    if (val === 'false') return false;
-    throw new Error(`${fieldName} must be true or false`);
-}
-
 // Ready event
 client.once(Events.ClientReady, async () => {
     isDiscordReady = true;
@@ -235,14 +206,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
         // ========== SLASH COMMANDS ==========
         if (interaction.isChatInputCommand()) {
-            if (interaction.commandName !== 'mapvote' && interaction.commandName !== 'seed') return;
+            if (interaction.commandName !== 'mapvote') return;
 
-            const commandName = interaction.commandName;
             const subcommand = interaction.options.getSubcommand();
             const serverNum = interaction.options.getInteger('server') || 1;
 
-            // Map vote setup command - Server Owner only
-            if (commandName === 'mapvote' && subcommand === 'setup') {
+            // Setup command - Server Owner only
+            if (subcommand === 'setup') {
                 if (!isServerOwner(interaction.member)) {
                     return interaction.reply({
                         content: 'Only the server owner or administrators can use the setup wizard.',
@@ -254,7 +224,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 return;
             }
 
-            // All other command actions require admin role
+            // All other commands require admin role
             if (!isAdmin(interaction.member)) {
                 const adminRoleId = configManager.getAdminRoleId();
                 const roleMsg = adminRoleId
@@ -271,59 +241,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const config = configManager.getEffectiveServerConfig(serverNum);
             const serverName = config.serverName || `Server ${serverNum}`;
 
-            if (commandName === 'seed' && subcommand === 'panel') {
-                if (!crcon) {
-                    return interaction.reply({
-                        content: `${serverName} is not configured. Use \`/mapvote setup\` to configure CRCON first.`,
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-                await interaction.deferReply();
-                const { panel } = await buildSeedPanelForUser(
-                    crcon,
-                    serverName,
-                    serverNum,
-                    interaction.guildId,
-                    interaction.user.id
-                );
-                await interaction.editReply(panel);
-            }
-
-            else if (commandName === 'seed' && subcommand === 'status') {
-                if (!crcon) {
-                    return interaction.reply({
-                        content: `${serverName} is not configured. Use \`/mapvote setup\` to configure CRCON first.`,
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-
-                const [seedingRaw, seedVipRaw] = await Promise.all([
-                    crcon.getSeedingRulesConfig().catch(() => null),
-                    crcon.getSeedVipConfig().catch(() => null)
-                ]);
-
-                const seeding = seedingRaw?.result || {};
-                const seedVip = seedVipRaw?.result || {};
-                const draft = await seedingDraftStore.getOrCreate(
-                    crcon,
-                    interaction.guildId,
-                    interaction.user.id,
-                    serverNum
-                );
-                const summary = seedingDraftStore.getSummary(draft);
-
-                await interaction.reply({
-                    content: `**${serverName} Seeding Status**\n` +
-                        `Seeding Rules: ${seeding.enabled ? 'ON' : 'OFF'} (dry_run=${!!seeding.dry_run})\n` +
-                        `Seed VIP: ${seedVip.enabled ? 'ON' : 'OFF'} (dry_run=${!!seedVip.dry_run})\n` +
-                        `Warning/Punish: ${seeding.number_of_warnings ?? 0}/${seeding.number_of_punishments ?? 0}\n` +
-                        `Thresholds: ${(seedVip.player_announce_thresholds || []).join(', ') || 'none'}\n` +
-                        `Draft: ${(summary.hasSeedingChanges || summary.hasSeedVipChanges) ? 'UNSAVED CHANGES' : 'In sync'}`,
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            else if (subcommand === 'panel') {
+            if (subcommand === 'panel') {
                 if (!service) {
                     return interaction.reply({
                         content: `${serverName} is not configured. Use \`/mapvote setup\` to configure.`,
@@ -380,9 +298,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         '`/mapvote start [server]` - Start map voting\n' +
                         '`/mapvote stop [server]` - Stop map voting\n' +
                         '`/mapvote status [server]` - Show status\n' +
-                        '`/mapvote help` - Show this help\n' +
-                        '`/seed panel [server]` - Seeding draft panel\n' +
-                        '`/seed status [server]` - Seeding status summary\n\n' +
+                        '`/mapvote help` - Show this help\n\n' +
                         '*[server] = 1, 2, 3, or 4 (default: 1)*',
                     flags: MessageFlags.Ephemeral
                 });
@@ -492,203 +408,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const crcon = crconServices[serverNum];
             const config = configManager.getEffectiveServerConfig(serverNum);
             const serverName = config.serverName || `Server ${serverNum}`;
-
-            // ========== SEEDING PANEL BUTTONS ==========
-            if (customId.startsWith('seed_')) {
-                if (!crcon) {
-                    return interaction.reply({ content: 'CRCON service not available for this server.', flags: MessageFlags.Ephemeral });
-                }
-
-                const guildId = interaction.guildId;
-                const userId = interaction.user.id;
-
-                if (customId.startsWith('seed_form_seeding_enforcement_')) {
-                    const { session } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    const modal = seedingPanelService.buildSeedingEnforcementModal(serverNum, session.seedingDraft);
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                if (customId.startsWith('seed_form_seeding_caps_')) {
-                    const { session } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    const modal = seedingPanelService.buildSeedingCapsModal(serverNum, session.seedingDraft);
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                if (customId.startsWith('seed_form_seedvip_poll_')) {
-                    const { session } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    const modal = seedingPanelService.buildSeedVipPollModal(serverNum, session.seedVipDraft);
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                if (customId.startsWith('seed_form_seedvip_requirements_')) {
-                    const { session } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    const modal = seedingPanelService.buildSeedVipRequirementsModal(serverNum, session.seedVipDraft);
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                if (customId.startsWith('seed_form_seeding_messages_')) {
-                    const { session } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    const modal = seedingPanelService.buildSeedingMessagesModal(serverNum, session.seedingDraft);
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                if (customId.startsWith('seed_form_seedvip_messages_')) {
-                    const { session } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    const modal = seedingPanelService.buildSeedVipMessagesModal(serverNum, session.seedVipDraft);
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                if (customId.startsWith('seed_refresh_')) {
-                    await interaction.deferUpdate();
-                    await seedingDraftStore.refreshSession(crcon, guildId, userId, serverNum);
-                    const { panel } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    await updatePanelMessage(interaction, panel);
-                    return;
-                }
-
-                if (customId.startsWith('seed_toggle_seeding_')) {
-                    await interaction.deferUpdate();
-                    try {
-                        const newEnabled = await crcon.toggleSeedingRulesEnabled();
-                        await seedingDraftStore.refreshSession(crcon, guildId, userId, serverNum);
-                        const { panel } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                        await updatePanelMessage(interaction, panel);
-                        await interaction.followUp({
-                            content: `Seeding rules ${newEnabled ? 'enabled' : 'disabled'} for ${serverName}.`,
-                            flags: MessageFlags.Ephemeral
-                        });
-                    } catch (e) {
-                        logger.error(`Failed to toggle seeding rules for ${serverName}:`, e);
-                        await interaction.followUp({
-                            content: `Failed to toggle seeding rules: ${e.message}`,
-                            flags: MessageFlags.Ephemeral
-                        });
-                    }
-                    return;
-                }
-
-                if (customId.startsWith('seed_toggle_vip_')) {
-                    await interaction.deferUpdate();
-                    try {
-                        const newEnabled = await crcon.toggleSeedVipEnabled();
-                        await seedingDraftStore.refreshSession(crcon, guildId, userId, serverNum);
-                        const { panel } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                        await updatePanelMessage(interaction, panel);
-                        await interaction.followUp({
-                            content: `Seed VIP ${newEnabled ? 'enabled' : 'disabled'} for ${serverName}.`,
-                            flags: MessageFlags.Ephemeral
-                        });
-                    } catch (e) {
-                        logger.error(`Failed to toggle Seed VIP for ${serverName}:`, e);
-                        await interaction.followUp({
-                            content: `Failed to toggle Seed VIP: ${e.message}`,
-                            flags: MessageFlags.Ephemeral
-                        });
-                    }
-                    return;
-                }
-
-                if (customId.startsWith('seed_edit_seeding_json_')) {
-                    const modal = seedingPanelService.buildPatchModal('seeding', serverNum);
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                if (customId.startsWith('seed_edit_seedvip_json_')) {
-                    const modal = seedingPanelService.buildPatchModal('seedvip', serverNum);
-                    await interaction.showModal(modal);
-                    return;
-                }
-
-                if (customId.startsWith('seed_validate_')) {
-                    await interaction.deferUpdate();
-                    try {
-                        const session = await seedingDraftStore.getOrCreate(crcon, guildId, userId, serverNum);
-                        const summary = seedingDraftStore.getSummary(session);
-                        if (!summary.hasSeedingChanges && !summary.hasSeedVipChanges) {
-                            await interaction.followUp({
-                                content: 'No draft changes to validate.',
-                                flags: MessageFlags.Ephemeral
-                            });
-                        } else {
-                            await seedingDraftStore.validate(crcon, session);
-                            await interaction.followUp({
-                                content: 'Draft validation passed for current changes.',
-                                flags: MessageFlags.Ephemeral
-                            });
-                        }
-                    } catch (e) {
-                        logger.error(`Draft validation failed for ${serverName}:`, e);
-                        await interaction.followUp({
-                            content: `Draft validation failed: ${e.message}`,
-                            flags: MessageFlags.Ephemeral
-                        });
-                    }
-
-                    const { panel } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    await updatePanelMessage(interaction, panel);
-                    return;
-                }
-
-                if (customId.startsWith('seed_apply_')) {
-                    await interaction.deferUpdate();
-                    try {
-                        const session = await seedingDraftStore.getOrCreate(crcon, guildId, userId, serverNum);
-                        const result = await seedingDraftStore.apply(crcon, session);
-
-                        if (!result.changed) {
-                            await interaction.followUp({
-                                content: 'No draft changes to apply.',
-                                flags: MessageFlags.Ephemeral
-                            });
-                        } else {
-                            await seedingDraftStore.refreshSession(crcon, guildId, userId, serverNum);
-                            await interaction.followUp({
-                                content: 'Draft validated and applied to CRCON successfully.',
-                                flags: MessageFlags.Ephemeral
-                            });
-                        }
-                    } catch (e) {
-                        logger.error(`Failed to apply draft for ${serverName}:`, e);
-                        await interaction.followUp({
-                            content: `Apply failed: ${e.message}`,
-                            flags: MessageFlags.Ephemeral
-                        });
-                    }
-
-                    const { panel } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    await updatePanelMessage(interaction, panel);
-                    return;
-                }
-
-                if (customId.startsWith('seed_discard_')) {
-                    await interaction.deferUpdate();
-                    try {
-                        await seedingDraftStore.getOrCreate(crcon, guildId, userId, serverNum);
-                        seedingDraftStore.discard(guildId, userId, serverNum);
-                        await interaction.followUp({
-                            content: 'Draft discarded. Live config restored in panel.',
-                            flags: MessageFlags.Ephemeral
-                        });
-                    } catch (e) {
-                        logger.error(`Failed to discard draft for ${serverName}:`, e);
-                        await interaction.followUp({
-                            content: `Discard failed: ${e.message}`,
-                            flags: MessageFlags.Ephemeral
-                        });
-                    }
-
-                    const { panel } = await buildSeedPanelForUser(crcon, serverName, serverNum, guildId, userId);
-                    await updatePanelMessage(interaction, panel);
-                    return;
-                }
-            }
 
             if (!service) {
                 return interaction.reply({ content: 'Map voting service not available for this server.', flags: MessageFlags.Ephemeral });
@@ -1289,200 +1008,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         // ========== MODAL SUBMISSIONS ==========
         else if (interaction.isModalSubmit()) {
             const customId = interaction.customId;
-
-            // ========== SEEDING FORM MODALS ==========
-            if (customId.startsWith('seed_modal_form_')) {
-                if (!isAdmin(interaction.member)) {
-                    return interaction.reply({ content: 'You do not have permission.', flags: MessageFlags.Ephemeral });
-                }
-
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-                const idParts = customId.split('_');
-                const formType = `${idParts[3]}_${idParts[4]}`; // seeding_enforcement, seeding_caps, seedvip_poll, seedvip_requirements
-                const serverNum = parseInt(idParts[5], 10) || 1;
-                const crcon = crconServices[serverNum];
-                const config = configManager.getEffectiveServerConfig(serverNum);
-                const serverName = config.serverName || `Server ${serverNum}`;
-
-                if (!crcon) {
-                    await interaction.editReply({ content: 'CRCON service not available for this server.' });
-                    return;
-                }
-
-                try {
-                    await seedingDraftStore.getOrCreate(crcon, interaction.guildId, interaction.user.id, serverNum);
-
-                    if (formType === 'seeding_enforcement') {
-                        const patch = {
-                            number_of_warnings: parseBoundedInt(interaction.fields.getTextInputValue('number_of_warnings'), 'number_of_warnings', 0, 20),
-                            warning_interval_seconds: parseBoundedInt(interaction.fields.getTextInputValue('warning_interval_seconds'), 'warning_interval_seconds', 0, 600),
-                            number_of_punishments: parseBoundedInt(interaction.fields.getTextInputValue('number_of_punishments'), 'number_of_punishments', -1, 50),
-                            punish_interval_seconds: parseBoundedInt(interaction.fields.getTextInputValue('punish_interval_seconds'), 'punish_interval_seconds', 0, 600),
-                            kick_grace_period_seconds: parseBoundedInt(interaction.fields.getTextInputValue('kick_grace_period_seconds'), 'kick_grace_period_seconds', 0, 3600)
-                        };
-                        seedingDraftStore.applySeedingPatch(interaction.guildId, interaction.user.id, serverNum, patch);
-                    } else if (formType === 'seeding_caps') {
-                        const patch = {
-                            dont_do_anything_below_this_number_of_players: parseBoundedInt(
-                                interaction.fields.getTextInputValue('dont_do_anything_below_this_number_of_players'),
-                                'dont_do_anything_below_this_number_of_players',
-                                0,
-                                100
-                            ),
-                            disallowed_roles: {
-                                max_players: parseBoundedInt(interaction.fields.getTextInputValue('disallowed_roles_max_players'), 'disallowed_roles.max_players', 0, 100)
-                            },
-                            disallowed_weapons: {
-                                max_players: parseBoundedInt(interaction.fields.getTextInputValue('disallowed_weapons_max_players'), 'disallowed_weapons.max_players', 0, 100)
-                            },
-                            enforce_cap_fight: {
-                                max_players: parseBoundedInt(interaction.fields.getTextInputValue('enforce_cap_fight_max_players'), 'enforce_cap_fight.max_players', 0, 100),
-                                max_caps: parseBoundedInt(interaction.fields.getTextInputValue('enforce_cap_fight_max_caps'), 'enforce_cap_fight.max_caps', 2, 4)
-                            }
-                        };
-                        seedingDraftStore.applySeedingPatch(interaction.guildId, interaction.user.id, serverNum, patch);
-                    } else if (formType === 'seedvip_poll') {
-                        const thresholdsRaw = interaction.fields.getTextInputValue('player_announce_thresholds_csv');
-                        const thresholds = thresholdsRaw
-                            .split(',')
-                            .map(v => parseBoundedInt(v, 'player_announce_thresholds item', 0, 100))
-                            .filter((value, idx, arr) => arr.indexOf(value) === idx)
-                            .sort((a, b) => a - b);
-
-                        const patch = {
-                            poll_time_seeding: parseBoundedInt(interaction.fields.getTextInputValue('poll_time_seeding'), 'poll_time_seeding', 0, 3600),
-                            poll_time_seeded: parseBoundedInt(interaction.fields.getTextInputValue('poll_time_seeded'), 'poll_time_seeded', 0, 7200),
-                            player_announce_thresholds: thresholds,
-                            requirements: {
-                                max_allies: parseBoundedInt(interaction.fields.getTextInputValue('requirements_max_allies'), 'requirements.max_allies', 0, 50),
-                                max_axis: parseBoundedInt(interaction.fields.getTextInputValue('requirements_max_axis'), 'requirements.max_axis', 0, 50)
-                            }
-                        };
-                        seedingDraftStore.applySeedVipPatch(interaction.guildId, interaction.user.id, serverNum, patch);
-                    } else if (formType === 'seedvip_requirements') {
-                        const patch = {
-                            requirements: {
-                                buffer: {
-                                    minutes: parseBoundedInt(interaction.fields.getTextInputValue('buffer_minutes'), 'requirements.buffer.minutes', 0, 600)
-                                },
-                                minimum_play_time: {
-                                    minutes: parseBoundedInt(interaction.fields.getTextInputValue('minimum_play_time_minutes'), 'requirements.minimum_play_time.minutes', 0, 600)
-                                },
-                                online_when_seeded: parseBooleanStrict(interaction.fields.getTextInputValue('online_when_seeded'), 'requirements.online_when_seeded')
-                            },
-                            reward: {
-                                timeframe: {
-                                    days: parseBoundedInt(interaction.fields.getTextInputValue('reward_days'), 'reward.timeframe.days', 0, 365),
-                                    hours: parseBoundedInt(interaction.fields.getTextInputValue('reward_hours'), 'reward.timeframe.hours', 0, 23)
-                                }
-                            }
-                        };
-                        seedingDraftStore.applySeedVipPatch(interaction.guildId, interaction.user.id, serverNum, patch);
-                    } else if (formType === 'seeding_messages') {
-                        const patch = {
-                            announcement_message: interaction.fields.getTextInputValue('announcement_message'),
-                            warning_message: interaction.fields.getTextInputValue('warning_message'),
-                            punish_message: interaction.fields.getTextInputValue('punish_message'),
-                            kick_message: interaction.fields.getTextInputValue('kick_message')
-                        };
-                        seedingDraftStore.applySeedingPatch(interaction.guildId, interaction.user.id, serverNum, patch);
-                    } else if (formType === 'seedvip_messages') {
-                        const patch = {
-                            player_messages: {
-                                seeding_in_progress_message: interaction.fields.getTextInputValue('seeding_in_progress_message'),
-                                seeding_complete_message: interaction.fields.getTextInputValue('seeding_complete_message'),
-                                player_count_message: interaction.fields.getTextInputValue('player_count_message'),
-                                reward_player_message: interaction.fields.getTextInputValue('reward_player_message'),
-                                reward_player_message_no_vip: interaction.fields.getTextInputValue('reward_player_message_no_vip')
-                            }
-                        };
-                        seedingDraftStore.applySeedVipPatch(interaction.guildId, interaction.user.id, serverNum, patch);
-                    } else {
-                        await interaction.editReply({ content: 'Unknown form type.' });
-                        return;
-                    }
-
-                    const session = seedingDraftStore.get(interaction.guildId, interaction.user.id, serverNum);
-                    const summary = seedingDraftStore.getSummary(session);
-                    await interaction.editReply({ content: `Draft updated from form for ${serverName}.` });
-
-                    if (interaction.message) {
-                        const panel = await seedingPanelService.buildMainPanel(crcon, serverName, serverNum, session, summary);
-                        await interaction.message.edit(panel);
-                    }
-                } catch (e) {
-                    logger.error(`Failed to apply seeding form modal for ${serverName}:`, e);
-                    await interaction.editReply({ content: `Failed to update draft: ${e.message}` });
-                }
-                return;
-            }
-
-            // ========== SEEDING PATCH MODALS ==========
-            if (customId.startsWith('seed_modal_patch_')) {
-                if (!isAdmin(interaction.member)) {
-                    return interaction.reply({ content: 'You do not have permission.', flags: MessageFlags.Ephemeral });
-                }
-
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-                const idParts = customId.split('_');
-                const kind = idParts[3]; // seeding|seedvip
-                const serverNum = parseInt(idParts[4], 10) || 1;
-                const crcon = crconServices[serverNum];
-                const config = configManager.getEffectiveServerConfig(serverNum);
-                const serverName = config.serverName || `Server ${serverNum}`;
-
-                if (!crcon) {
-                    await interaction.editReply({ content: 'CRCON service not available for this server.' });
-                    return;
-                }
-
-                const rawJson = interaction.fields.getTextInputValue('json_patch');
-                let patch;
-                try {
-                    patch = JSON.parse(rawJson);
-                } catch (e) {
-                    await interaction.editReply({ content: `Invalid JSON patch: ${e.message}` });
-                    return;
-                }
-
-                if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
-                    await interaction.editReply({ content: 'JSON patch must be an object (e.g. {"enabled": true}).' });
-                    return;
-                }
-
-                try {
-                    await seedingDraftStore.getOrCreate(crcon, interaction.guildId, interaction.user.id, serverNum);
-                    if (kind === 'seeding') {
-                        seedingDraftStore.applySeedingPatch(interaction.guildId, interaction.user.id, serverNum, patch);
-                    } else if (kind === 'seedvip') {
-                        seedingDraftStore.applySeedVipPatch(interaction.guildId, interaction.user.id, serverNum, patch);
-                    } else {
-                        await interaction.editReply({ content: 'Unknown patch type.' });
-                        return;
-                    }
-
-                    const session = seedingDraftStore.get(interaction.guildId, interaction.user.id, serverNum);
-                    const summary = seedingDraftStore.getSummary(session);
-
-                    const changedKeys = kind === 'seeding' ? summary.seedingChanged : summary.seedVipChanged;
-                    const preview = changedKeys.slice(0, 12).join(', ') || 'none';
-
-                    await interaction.editReply({
-                        content: `Patch applied to draft for ${serverName}. Changed top-level keys (${changedKeys.length}): ${preview}`
-                    });
-
-                    if (interaction.message) {
-                        const panel = await seedingPanelService.buildMainPanel(crcon, serverName, serverNum, session, summary);
-                        await interaction.message.edit(panel);
-                    }
-                } catch (e) {
-                    logger.error(`Failed to apply seed patch modal for ${serverName}:`, e);
-                    await interaction.editReply({ content: `Failed to apply patch: ${e.message}` });
-                }
-                return;
-            }
 
             // ========== SCHEDULE MODALS ==========
             if (customId.startsWith('schedule_modal_')) {
