@@ -36,3 +36,24 @@ test('toggleSeederVipRewardEnabled returns persisted state after write', async (
     const newState = await svc.toggleSeederVipRewardEnabled();
     assert.equal(newState, false);
 });
+
+test('setSeederVipRewardEnabled couples dry_run opposite to enabled', async () => {
+    const svc = new CRCONService('https://example.com', 'token', 'Test');
+    const posted = [];
+    let currentEnabled = true;
+
+    svc.getSeederVipRewardConfig = async () => ({ result: { enabled: currentEnabled, dry_run: !currentEnabled } });
+    svc.post = async (_endpoint, body) => {
+        posted.push(body);
+        currentEnabled = Boolean(body?.config?.enabled);
+        return { failed: false };
+    };
+
+    await svc.setSeederVipRewardEnabled(false);
+    await svc.setSeederVipRewardEnabled(true);
+
+    assert.equal(posted[0].config.enabled, false);
+    assert.equal(posted[0].config.dry_run, true);
+    assert.equal(posted[1].config.enabled, true);
+    assert.equal(posted[1].config.dry_run, false);
+});

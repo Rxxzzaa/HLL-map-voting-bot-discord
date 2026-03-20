@@ -227,7 +227,11 @@ class CRCONService {
         if (parsedEnabled === null) {
             throw new Error(`Invalid Seeder VIP Reward enabled value: ${enabled}`);
         }
-        const config = { ...currentConfig, enabled: parsedEnabled };
+        const config = {
+            ...currentConfig,
+            enabled: parsedEnabled,
+            dry_run: !parsedEnabled
+        };
 
         const response = await this.post('set_seed_vip_config', {
             by: 'frontline_democracy',
