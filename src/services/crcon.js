@@ -100,6 +100,13 @@ class CRCONService {
         }
     }
 
+    assertCommandSucceeded(response, endpoint) {
+        if (response && typeof response === 'object' && response.failed === true) {
+            const err = response.error || `CRCON command ${endpoint} returned failed=true`;
+            throw new Error(err);
+        }
+    }
+
     // Map Voting Methods
     async getMaps() {
         return this.get('get_maps');
@@ -201,7 +208,14 @@ class CRCONService {
     extractSeederVipRewardEnabled(response) {
         const result = response?.result ?? response;
         if (!result || typeof result !== 'object') return null;
-        return this.normalizeBoolean(result.enabled);
+        const direct = this.normalizeBoolean(result.enabled);
+        if (direct !== null) return direct;
+
+        if (result.config && typeof result.config === 'object') {
+            return this.normalizeBoolean(result.config.enabled);
+        }
+
+        return null;
     }
 
     async setSeederVipRewardEnabled(enabled) {
@@ -215,10 +229,21 @@ class CRCONService {
         }
         const config = { ...currentConfig, enabled: parsedEnabled };
 
-        return this.post('set_seed_vip_config', {
+        const response = await this.post('set_seed_vip_config', {
             by: 'frontline_democracy',
             config
         });
+
+        this.assertCommandSucceeded(response, 'set_seed_vip_config');
+
+        // Read-back verification so UI never reports a successful toggle that did not persist.
+        const latest = await this.getSeederVipRewardConfig();
+        const persisted = this.extractSeederVipRewardEnabled(latest);
+        if (persisted !== parsedEnabled) {
+            throw new Error(`Seeder VIP Reward update did not persist (expected=${parsedEnabled}, actual=${persisted})`);
+        }
+
+        return response;
     }
 
     async toggleSeederVipRewardEnabled() {
@@ -230,7 +255,13 @@ class CRCONService {
 
         const newEnabled = !currentEnabled;
         await this.setSeederVipRewardEnabled(newEnabled);
-        return newEnabled;
+
+        const latest = await this.getSeederVipRewardConfig();
+        const persisted = this.extractSeederVipRewardEnabled(latest);
+        if (persisted === null) {
+            throw new Error('Could not confirm Seeder VIP Reward state after update');
+        }
+        return persisted;
     }
 
     // Backward-compatible aliases for older call sites
