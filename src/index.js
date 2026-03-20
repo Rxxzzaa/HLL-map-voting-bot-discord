@@ -196,7 +196,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         flags: MessageFlags.Ephemeral
                     });
                 }
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                await interaction.deferReply();
                 const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
                 await interaction.editReply(panel);
             }
@@ -377,6 +377,28 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
                 await updatePanelMessage(interaction, panel);
                 await interaction.followUp({ content: responseMessage, flags: MessageFlags.Ephemeral });
+            }
+
+            // Toggle seeding rules via CRCON API
+            else if (customId === 'mapvote_toggle_seeding' || customId.startsWith('mapvote_toggle_seeding_')) {
+                await interaction.deferUpdate();
+
+                try {
+                    const newEnabled = await crcon.toggleSeedingRulesEnabled();
+
+                    const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
+                    await updatePanelMessage(interaction, panel);
+                    await interaction.followUp({
+                        content: `Seeding rules ${newEnabled ? 'enabled' : 'disabled'} for ${serverName} via CRCON.`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                } catch (e) {
+                    logger.error(`Failed to toggle seeding rules for ${serverName}:`, e);
+                    await interaction.followUp({
+                        content: `Failed to toggle seeding rules via CRCON: ${e.message}`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
             }
 
             // Refresh panel

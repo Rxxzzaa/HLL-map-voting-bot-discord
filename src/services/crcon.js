@@ -174,6 +174,48 @@ class CRCONService {
         return this.post('set_votemap_config', { enabled });
     }
 
+    /**
+     * Seeding rules methods
+     * Canonical endpoint names from CRCON API documentation:
+     * - get_auto_mod_seeding_config
+     * - set_auto_mod_seeding_config
+     */
+    async getSeedingRulesConfig() {
+        return this.get('get_auto_mod_seeding_config');
+    }
+
+    extractSeedingRulesEnabled(response) {
+        const result = response?.result ?? response;
+        if (!result || typeof result !== 'object') return null;
+        if (typeof result.enabled === 'boolean') return result.enabled;
+        return null;
+    }
+
+    async setSeedingRulesEnabled(enabled) {
+        const current = await this.getSeedingRulesConfig();
+        const currentConfig = current?.result && typeof current.result === 'object'
+            ? current.result
+            : {};
+        const user_config = { ...currentConfig, enabled: !!enabled };
+
+        return this.post('set_auto_mod_seeding_config', {
+            by: 'frontline_democracy',
+            user_config
+        });
+    }
+
+    async toggleSeedingRulesEnabled() {
+        const current = await this.getSeedingRulesConfig();
+        const currentEnabled = this.extractSeedingRulesEnabled(current);
+        if (currentEnabled === null) {
+            throw new Error('Could not determine current seeding rules state from CRCON');
+        }
+
+        const newEnabled = !currentEnabled;
+        await this.setSeedingRulesEnabled(newEnabled);
+        return newEnabled;
+    }
+
     // Broadcast message
     async broadcast(message) {
         return this.post('set_broadcast', { message });
