@@ -174,16 +174,6 @@ class CRCONService {
         return this.post('set_votemap_config', { enabled });
     }
 
-    /**
-     * Seeder VIP reward methods
-     * Canonical endpoint names from CRCON API documentation:
-     * - get_seed_vip_config
-     * - set_seed_vip_config
-     */
-    async getSeederVipRewardConfig() {
-        return this.get('get_seed_vip_config');
-    }
-
     normalizeBoolean(value) {
         if (typeof value === 'boolean') return value;
         if (typeof value === 'number') {
@@ -196,6 +186,72 @@ class CRCONService {
             if (['false', '0', 'off', 'disabled', 'no'].includes(normalized)) return false;
         }
         return null;
+    }
+
+    /**
+     * AutoMod seeding methods
+     * Canonical endpoint names from CRCON API documentation:
+     * - get_auto_mod_seeding_config
+     * - set_auto_mod_seeding_config
+     */
+    async getSeedingRulesConfig() {
+        return this.get('get_auto_mod_seeding_config');
+    }
+
+    async validateSeedingRulesConfig(config, by = 'discord_panel') {
+        return this.post('validate_auto_mod_seeding_config', {
+            by,
+            config
+        });
+    }
+
+    async setSeedingRulesConfig(config, by = 'discord_panel') {
+        return this.post('set_auto_mod_seeding_config', {
+            by,
+            user_config: config
+        });
+    }
+
+    extractSeedingRulesEnabled(response) {
+        const result = response?.result ?? response;
+        if (!result || typeof result !== 'object') return null;
+        return this.normalizeBoolean(result.enabled);
+    }
+
+    async setSeedingRulesEnabled(enabled) {
+        const current = await this.getSeedingRulesConfig();
+        const currentConfig = current?.result && typeof current.result === 'object'
+            ? current.result
+            : {};
+        const parsedEnabled = this.normalizeBoolean(enabled);
+        if (parsedEnabled === null) {
+            throw new Error(`Invalid seeding rules enabled value: ${enabled}`);
+        }
+        const user_config = { ...currentConfig, enabled: parsedEnabled };
+
+        return this.setSeedingRulesConfig(user_config, 'frontline_democracy');
+    }
+
+    async toggleSeedingRulesEnabled() {
+        const current = await this.getSeedingRulesConfig();
+        const currentEnabled = this.extractSeedingRulesEnabled(current);
+        if (currentEnabled === null) {
+            throw new Error('Could not determine current seeding rules state from CRCON');
+        }
+
+        const newEnabled = !currentEnabled;
+        await this.setSeedingRulesEnabled(newEnabled);
+        return newEnabled;
+    }
+
+    /**
+     * Seeder VIP reward methods
+     * Canonical endpoint names from CRCON API documentation:
+     * - get_seed_vip_config
+     * - set_seed_vip_config
+     */
+    async getSeederVipRewardConfig() {
+        return this.get('get_seed_vip_config');
     }
 
     extractSeederVipRewardEnabled(response) {
@@ -233,21 +289,53 @@ class CRCONService {
         return newEnabled;
     }
 
-    // Backward-compatible aliases for older call sites
-    async getSeedingRulesConfig() {
+    // Seed VIP generic methods used by the new seeding panel flow
+    async getSeedVipConfig() {
         return this.getSeederVipRewardConfig();
     }
 
-    extractSeedingRulesEnabled(response) {
+    async validateSeedVipConfig(config, by = 'discord_panel') {
+        return this.post('validate_seed_vip_config', {
+            by,
+            config
+        });
+    }
+
+    async setSeedVipConfig(config, by = 'discord_panel') {
+        return this.post('set_seed_vip_config', {
+            by,
+            config
+        });
+    }
+
+    extractSeedVipEnabled(response) {
         return this.extractSeederVipRewardEnabled(response);
     }
 
-    async setSeedingRulesEnabled(enabled) {
-        return this.setSeederVipRewardEnabled(enabled);
+    async setSeedVipEnabled(enabled) {
+        const current = await this.getSeedVipConfig();
+        const currentConfig = current?.result && typeof current.result === 'object'
+            ? current.result
+            : {};
+        const parsedEnabled = this.normalizeBoolean(enabled);
+        if (parsedEnabled === null) {
+            throw new Error(`Invalid seed VIP enabled value: ${enabled}`);
+        }
+        const config = { ...currentConfig, enabled: parsedEnabled };
+
+        return this.setSeedVipConfig(config);
     }
 
-    async toggleSeedingRulesEnabled() {
-        return this.toggleSeederVipRewardEnabled();
+    async toggleSeedVipEnabled() {
+        const current = await this.getSeedVipConfig();
+        const currentEnabled = this.extractSeedVipEnabled(current);
+        if (currentEnabled === null) {
+            throw new Error('Could not determine current seed VIP state from CRCON');
+        }
+
+        const newEnabled = !currentEnabled;
+        await this.setSeedVipEnabled(newEnabled);
+        return newEnabled;
     }
 
     // Broadcast message

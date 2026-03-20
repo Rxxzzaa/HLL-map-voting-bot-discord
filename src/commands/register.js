@@ -88,6 +88,44 @@ const commands = [
                 .setName('help')
                 .setDescription('Show help information')
         )
+        .toJSON(),
+    new SlashCommandBuilder()
+        .setName('seed')
+        .setDescription('CRCON seeding rules and seed VIP controls')
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('panel')
+                .setDescription('Show seeding control panel')
+                .addIntegerOption(option =>
+                    option
+                        .setName('server')
+                        .setDescription('Server number (1-4)')
+                        .setRequired(false)
+                        .addChoices(
+                            { name: 'Server 1', value: 1 },
+                            { name: 'Server 2', value: 2 },
+                            { name: 'Server 3', value: 3 },
+                            { name: 'Server 4', value: 4 }
+                        )
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('status')
+                .setDescription('Show seeding status summary')
+                .addIntegerOption(option =>
+                    option
+                        .setName('server')
+                        .setDescription('Server number (1-4)')
+                        .setRequired(false)
+                        .addChoices(
+                            { name: 'Server 1', value: 1 },
+                            { name: 'Server 2', value: 2 },
+                            { name: 'Server 3', value: 3 },
+                            { name: 'Server 4', value: 4 }
+                        )
+                )
+        )
         .toJSON()
 ];
 
