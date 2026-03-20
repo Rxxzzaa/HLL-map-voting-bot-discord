@@ -1,7 +1,7 @@
 {
-  "name": "frontline-democracy",
+  "name": "seeding-bot",
   "version": "1.0.0",
-  "description": "Frontline Democracy - Map Voting Bot for Hell Let Loose servers",
+  "description": "Seeding Bot for Hell Let Loose servers with CRCON integration",
   "main": "src/index.js",
   "engines": {
     "node": "20.x"

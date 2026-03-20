@@ -1029,3 +1029,4 @@ class MapVotingService {
 }
 
 module.exports = { MapVotingService };
+

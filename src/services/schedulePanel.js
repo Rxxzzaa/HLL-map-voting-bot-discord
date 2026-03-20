@@ -91,7 +91,7 @@ class SchedulePanelService {
             '• Changes apply after current match ends'
         );
 
-        embed.setFooter({ text: 'Frontline Democracy • Schedule Manager' });
+        embed.setFooter({ text: 'Seeding Bot • Schedule Manager' });
 
         // Buttons Row 1 - Schedule management
         const row1 = new ActionRowBuilder().addComponents(
@@ -852,3 +852,4 @@ class SchedulePanelService {
 }
 
 module.exports = new SchedulePanelService();
+

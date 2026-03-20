@@ -29,7 +29,7 @@ class SetupWizard {
         const adminRoleId = configManager.getAdminRoleId();
 
         const embed = new EmbedBuilder()
-            .setTitle('Frontline Democracy Setup')
+            .setTitle('Seeding Bot Setup')
             .setDescription('Configure your CRCON servers and permissions for map voting')
             .setColor(serverCount > 0 ? 0x00FF00 : 0xFF6600);
 
@@ -120,7 +120,7 @@ class SetupWizard {
     buildAdminRolePanel(roles) {
         const embed = new EmbedBuilder()
             .setTitle('Select Admin Role')
-            .setDescription('Choose a role that will have access to all Frontline Democracy commands.\n\n**Note:** Server owners always have access regardless of role.')
+            .setDescription('Choose a role that will have access to all Seeding Bot commands.\n\n**Note:** Server owners always have access regardless of role.')
             .setColor(0x5865F2);
 
         // Filter to manageable roles (not @everyone, not bot roles)
@@ -394,3 +394,4 @@ class SetupWizard {
 }
 
 module.exports = new SetupWizard();
+

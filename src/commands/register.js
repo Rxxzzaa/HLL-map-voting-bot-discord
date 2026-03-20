@@ -1,5 +1,5 @@
 /**
- * Frontline Democracy - Slash Command Registration
+ * Seeding Bot - Slash Command Registration
  * Registers all slash commands with Discord
  */
 
@@ -9,7 +9,7 @@ const logger = require('../utils/logger');
 const commands = [
     new SlashCommandBuilder()
         .setName('mapvote')
-        .setDescription('Frontline Democracy - HLL map voting commands')
+        .setDescription('Seeding Bot - HLL map voting commands')
         .addSubcommand(subcommand =>
             subcommand
                 .setName('setup')
@@ -157,3 +157,4 @@ async function registerCommands(client) {
 }
 
 module.exports = { registerCommands, commands };
+

@@ -1,5 +1,5 @@
 /**
- * Frontline Democracy
+ * Seeding Bot
  * Discord bot for Hell Let Loose map voting
  * With Discord-based setup wizard for easy deployment
  */
@@ -43,7 +43,7 @@ let healthServer = null;
 function buildHealthPayload() {
     return {
         status: isDiscordReady ? 'ok' : 'starting',
-        service: 'frontline-democracy',
+        service: 'seeding-bot',
         discordReady: isDiscordReady,
         timestamp: new Date().toISOString()
     };
@@ -201,7 +201,7 @@ function parseBooleanStrict(raw, fieldName) {
 // Ready event
 client.once(Events.ClientReady, async () => {
     isDiscordReady = true;
-    logger.info(`Frontline Democracy logged in as ${client.user.tag}`);
+    logger.info(`Seeding Bot logged in as ${client.user.tag}`);
 
     // Register slash commands
     await registerCommands(client);
@@ -213,7 +213,7 @@ client.once(Events.ClientReady, async () => {
     if (serverCount === 0) {
         logger.info('No servers configured. Use /mapvote setup to configure.');
     } else {
-        logger.info(`Frontline Democracy ready with ${serverCount} server(s)!`);
+        logger.info(`Seeding Bot ready with ${serverCount} server(s)!`);
     }
 });
 
@@ -374,7 +374,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             else if (subcommand === 'help') {
                 await interaction.reply({
-                    content: '**Frontline Democracy Commands:**\n' +
+                    content: '**Seeding Bot Commands:**\n' +
                         '`/mapvote setup` - Open setup wizard (Owner/Admin only)\n' +
                         '`/mapvote panel [server]` - Show control panel\n' +
                         '`/mapvote start [server]` - Start map voting\n' +
@@ -1550,7 +1550,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const messages = await channel.messages.fetch({ limit: 10 });
                     const setupMessage = messages.find(m =>
                         m.author.id === client.user.id &&
-                        m.embeds[0]?.title === 'Frontline Democracy Setup'
+                        m.embeds[0]?.title === 'Seeding Bot Setup'
                     );
                     if (setupMessage) {
                         await setupMessage.edit(setupWizard.buildSetupPanel());
@@ -1668,3 +1668,4 @@ if (!token) {
 
 healthServer = startHealthServer();
 client.login(token);
+

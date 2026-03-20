@@ -1,6 +1,6 @@
-# Map Vote Bot
+# Seeding Bot
 
-Standalone Discord bot for Hell Let Loose map voting with CRCON integration.
+Standalone Discord bot for Hell Let Loose seeding management and map voting with CRCON integration.
 
 ## Features
 

@@ -1,5 +1,5 @@
 /**
- * Frontline Democracy - Map Vote Control Panel Service
+ * Seeding Bot - Map Vote Control Panel Service
  * Interactive panel for managing map voting settings, whitelist, and blacklist
  */
 
@@ -88,9 +88,9 @@ class MapVotePanelService {
                 logger.warn(`[MapVotePanel] Error fetching data: ${e.message}`);
             }
 
-            // Frontline Democracy Status
+            // Seeding Bot Status
             embed.addFields({
-                name: '🗳️ Frontline Democracy',
+                name: '🗳️ Seeding Bot',
                 value: `**Status:** ${status === 'running' ? '🟢 Running' : '🔴 Paused'}\n` +
                        `**Vote Active:** ${config.voteActive ? '✅ Yes' : '❌ No'}\n` +
                        `**Seeded:** ${config.seeded ? '✅ Yes' : '❌ No'}\n` +
@@ -198,7 +198,7 @@ class MapVotePanelService {
                 '• Configure voting thresholds'
             );
 
-            embed.setFooter({ text: 'Frontline Democracy • Use the buttons below to manage' });
+            embed.setFooter({ text: 'Seeding Bot • Use the buttons below to manage' });
 
             // Control buttons - Row 1
             const row1 = new ActionRowBuilder().addComponents(
@@ -568,7 +568,7 @@ class MapVotePanelService {
         );
 
         embed.setDescription(
-            'Configure Frontline Democracy voting behavior.\n\n' +
+            'Configure Seeding Bot voting behavior.\n\n' +
             'Click a button below to edit a setting.'
         );
 
@@ -613,3 +613,4 @@ class MapVotePanelService {
 }
 
 module.exports = { MapVotePanelService };
+
