@@ -174,6 +174,19 @@ async function updatePanelMessage(interaction, payload, options = {}) {
     throw new Error('Unable to update interaction panel message.');
 }
 
+async function followUpEphemeralAutoDelete(interaction, content, delayMs = 5000) {
+    const reply = await interaction.followUp({
+        content,
+        flags: MessageFlags.Ephemeral
+    });
+
+    setTimeout(() => {
+        interaction.webhook.deleteMessage(reply.id).catch(() => {
+            // Ignore: message may already be dismissed or expired.
+        });
+    }, delayMs);
+}
+
 // Ready event
 client.once(Events.ClientReady, async () => {
     isDiscordReady = true;
@@ -427,16 +440,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                     const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
                     await updatePanelMessage(interaction, panel);
-                    await interaction.followUp({
-                        content: `Seeder VIP Reward ${newEnabled ? 'enabled' : 'disabled'} for ${serverName} via CRCON.`,
-                        flags: MessageFlags.Ephemeral
-                    });
+                    await followUpEphemeralAutoDelete(
+                        interaction,
+                        `Seeder VIP Reward ${newEnabled ? 'enabled' : 'disabled'} for ${serverName} via CRCON.`
+                    );
                 } catch (e) {
                     logger.error(`Failed to toggle Seeder VIP Reward for ${serverName}:`, e);
-                    await interaction.followUp({
-                        content: `Failed to toggle Seeder VIP Reward via CRCON: ${e.message}`,
-                        flags: MessageFlags.Ephemeral
-                    });
+                    await followUpEphemeralAutoDelete(
+                        interaction,
+                        `Failed to toggle Seeder VIP Reward via CRCON: ${e.message}`
+                    );
                 }
             }
 
@@ -455,7 +468,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
                 await updatePanelMessage(interaction, panel);
-                await interaction.followUp({ content: responseMessage, flags: MessageFlags.Ephemeral });
+                await followUpEphemeralAutoDelete(interaction, responseMessage);
             }
 
             // Refresh panel
