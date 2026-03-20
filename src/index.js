@@ -379,23 +379,28 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await interaction.followUp({ content: responseMessage, flags: MessageFlags.Ephemeral });
             }
 
-            // Toggle seeding rules via CRCON API
-            else if (customId === 'mapvote_toggle_seeding' || customId.startsWith('mapvote_toggle_seeding_')) {
+            // Toggle Seeder VIP Reward via CRCON API
+            else if (
+                customId === 'mapvote_toggle_seed_vip' ||
+                customId.startsWith('mapvote_toggle_seed_vip_') ||
+                customId === 'mapvote_toggle_seeding' ||
+                customId.startsWith('mapvote_toggle_seeding_')
+            ) {
                 await interaction.deferUpdate();
 
                 try {
-                    const newEnabled = await crcon.toggleSeedingRulesEnabled();
+                    const newEnabled = await crcon.toggleSeederVipRewardEnabled();
 
                     const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
                     await updatePanelMessage(interaction, panel);
                     await interaction.followUp({
-                        content: `Seeding rules ${newEnabled ? 'enabled' : 'disabled'} for ${serverName} via CRCON.`,
+                        content: `Seeder VIP Reward ${newEnabled ? 'enabled' : 'disabled'} for ${serverName} via CRCON.`,
                         flags: MessageFlags.Ephemeral
                     });
                 } catch (e) {
-                    logger.error(`Failed to toggle seeding rules for ${serverName}:`, e);
+                    logger.error(`Failed to toggle Seeder VIP Reward for ${serverName}:`, e);
                     await interaction.followUp({
-                        content: `Failed to toggle seeding rules via CRCON: ${e.message}`,
+                        content: `Failed to toggle Seeder VIP Reward via CRCON: ${e.message}`,
                         flags: MessageFlags.Ephemeral
                     });
                 }

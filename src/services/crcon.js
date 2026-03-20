@@ -175,45 +175,62 @@ class CRCONService {
     }
 
     /**
-     * Seeding rules methods
+     * Seeder VIP reward methods
      * Canonical endpoint names from CRCON API documentation:
-     * - get_auto_mod_seeding_config
-     * - set_auto_mod_seeding_config
+     * - get_seed_vip_config
+     * - set_seed_vip_config
      */
-    async getSeedingRulesConfig() {
-        return this.get('get_auto_mod_seeding_config');
+    async getSeederVipRewardConfig() {
+        return this.get('get_seed_vip_config');
     }
 
-    extractSeedingRulesEnabled(response) {
+    extractSeederVipRewardEnabled(response) {
         const result = response?.result ?? response;
         if (!result || typeof result !== 'object') return null;
         if (typeof result.enabled === 'boolean') return result.enabled;
         return null;
     }
 
-    async setSeedingRulesEnabled(enabled) {
-        const current = await this.getSeedingRulesConfig();
+    async setSeederVipRewardEnabled(enabled) {
+        const current = await this.getSeederVipRewardConfig();
         const currentConfig = current?.result && typeof current.result === 'object'
             ? current.result
             : {};
-        const user_config = { ...currentConfig, enabled: !!enabled };
+        const config = { ...currentConfig, enabled: !!enabled };
 
-        return this.post('set_auto_mod_seeding_config', {
+        return this.post('set_seed_vip_config', {
             by: 'frontline_democracy',
-            user_config
+            config
         });
     }
 
-    async toggleSeedingRulesEnabled() {
-        const current = await this.getSeedingRulesConfig();
-        const currentEnabled = this.extractSeedingRulesEnabled(current);
+    async toggleSeederVipRewardEnabled() {
+        const current = await this.getSeederVipRewardConfig();
+        const currentEnabled = this.extractSeederVipRewardEnabled(current);
         if (currentEnabled === null) {
-            throw new Error('Could not determine current seeding rules state from CRCON');
+            throw new Error('Could not determine current Seeder VIP Reward state from CRCON');
         }
 
         const newEnabled = !currentEnabled;
-        await this.setSeedingRulesEnabled(newEnabled);
+        await this.setSeederVipRewardEnabled(newEnabled);
         return newEnabled;
+    }
+
+    // Backward-compatible aliases for older call sites
+    async getSeedingRulesConfig() {
+        return this.getSeederVipRewardConfig();
+    }
+
+    extractSeedingRulesEnabled(response) {
+        return this.extractSeederVipRewardEnabled(response);
+    }
+
+    async setSeedingRulesEnabled(enabled) {
+        return this.setSeederVipRewardEnabled(enabled);
+    }
+
+    async toggleSeedingRulesEnabled() {
+        return this.toggleSeederVipRewardEnabled();
     }
 
     // Broadcast message
