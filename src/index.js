@@ -17,6 +17,11 @@ const setupWizard = require('./services/setupWizard');
 const scheduleManager = require('./services/scheduleManager');
 const schedulePanel = require('./services/schedulePanel');
 const { registerCommands } = require('./commands/register');
+const {
+    isSeederVipToggleButton,
+    isMapVoteToggleButton,
+    getScheduleWhitelistServerNum
+} = require('./utils/buttonRouting');
 
 // Create Discord client
 const client = new Client({
@@ -413,31 +418,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 return interaction.reply({ content: 'Map voting service not available for this server.', flags: MessageFlags.Ephemeral });
             }
 
-            // Toggle map voting
-            if (customId === 'mapvote_toggle' || customId.startsWith('mapvote_toggle_')) {
-                await interaction.deferUpdate();
-
-                let responseMessage = '';
-                if (service.getStatus() === 'running') {
-                    await service.pause(interaction.user.username);
-                    responseMessage = `Map voting paused for ${serverName}`;
-                } else {
-                    await service.resume(interaction.user.username);
-                    responseMessage = `Map voting started for ${serverName}`;
-                }
-
-                const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
-                await updatePanelMessage(interaction, panel);
-                await interaction.followUp({ content: responseMessage, flags: MessageFlags.Ephemeral });
-            }
-
             // Toggle Seeder VIP Reward via CRCON API
-            else if (
-                customId === 'mapvote_toggle_seed_vip' ||
-                customId.startsWith('mapvote_toggle_seed_vip_') ||
-                customId === 'mapvote_toggle_seeding' ||
-                customId.startsWith('mapvote_toggle_seeding_')
-            ) {
+            if (isSeederVipToggleButton(customId)) {
                 await interaction.deferUpdate();
 
                 try {
@@ -456,6 +438,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         flags: MessageFlags.Ephemeral
                     });
                 }
+            }
+
+            // Toggle map voting
+            else if (isMapVoteToggleButton(customId)) {
+                await interaction.deferUpdate();
+
+                let responseMessage = '';
+                if (service.getStatus() === 'running') {
+                    await service.pause(interaction.user.username);
+                    responseMessage = `Map voting paused for ${serverName}`;
+                } else {
+                    await service.resume(interaction.user.username);
+                    responseMessage = `Map voting started for ${serverName}`;
+                }
+
+                const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
+                await updatePanelMessage(interaction, panel);
+                await interaction.followUp({ content: responseMessage, flags: MessageFlags.Ephemeral });
             }
 
             // Refresh panel
@@ -767,7 +767,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             // ========== SCHEDULE WHITELIST BUTTONS ==========
             else if (customId.startsWith('sched_wl_')) {
-                const crcon = crconServices[serverNum];
+                const schedWlServerNum = getScheduleWhitelistServerNum(customId);
+                const crcon = schedWlServerNum ? crconServices[schedWlServerNum] : null;
                 if (!crcon) {
                     return interaction.reply({ content: 'CRCON service not available.', flags: MessageFlags.Ephemeral });
                 }
