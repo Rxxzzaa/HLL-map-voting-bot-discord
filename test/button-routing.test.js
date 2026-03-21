@@ -1,20 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-    isSeederVipToggleButton,
     isMapVoteToggleButton,
     getScheduleWhitelistServerNum
 } = require('../src/utils/buttonRouting');
 
-test('seeder vip toggle ids are recognized', () => {
-    assert.equal(isSeederVipToggleButton('mapvote_toggle_seed_vip'), true);
-    assert.equal(isSeederVipToggleButton('mapvote_toggle_seed_vip_2'), true);
-    assert.equal(isSeederVipToggleButton('mapvote_toggle_seeding'), true);
-    assert.equal(isSeederVipToggleButton('mapvote_toggle_seeding_s3'), true);
-    assert.equal(isSeederVipToggleButton('mapvote_toggle'), false);
-});
-
-test('map vote toggle does not include seeder vip ids', () => {
+test('map vote toggle excludes removed seeder vip ids', () => {
     assert.equal(isMapVoteToggleButton('mapvote_toggle'), true);
     assert.equal(isMapVoteToggleButton('mapvote_toggle_2'), true);
     assert.equal(isMapVoteToggleButton('mapvote_toggle_seed_vip'), false);

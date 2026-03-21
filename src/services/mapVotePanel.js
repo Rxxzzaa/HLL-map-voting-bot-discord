@@ -59,17 +59,15 @@ class MapVotePanelService {
             let whitelistCount = 0;
             let totalMaps = 0;
             let mapHistory = [];
-            let seederVipRewardEnabled = null;
 
             try {
-                const [serverStatus, vmConfig, vmStatus, whitelist, allMaps, history, seedVipConfig] = await Promise.all([
+                const [serverStatus, vmConfig, vmStatus, whitelist, allMaps, history] = await Promise.all([
                     crconService.getStatus().catch(() => null),
                     crconService.getVotemapConfig().catch(() => null),
                     crconService.getVotemapStatus().catch(() => null),
                     crconService.getVotemapWhitelist().catch(() => null),
                     crconService.getMaps().catch(() => null),
-                    crconService.getMapHistory ? crconService.getMapHistory().catch(() => null) : null,
-                    crconService.getSeederVipRewardConfig ? crconService.getSeederVipRewardConfig().catch(() => null) : null
+                    crconService.getMapHistory ? crconService.getMapHistory().catch(() => null) : null
                 ]);
 
                 if (serverStatus?.result) {
@@ -81,9 +79,6 @@ class MapVotePanelService {
                 whitelistCount = whitelist?.result?.length || 0;
                 totalMaps = allMaps?.result?.length || 0;
                 mapHistory = history?.result || [];
-                seederVipRewardEnabled = crconService.extractSeederVipRewardEnabled
-                    ? crconService.extractSeederVipRewardEnabled(seedVipConfig)
-                    : null;
             } catch (e) {
                 logger.warn(`[MapVotePanel] Error fetching data: ${e.message}`);
             }
@@ -94,7 +89,6 @@ class MapVotePanelService {
                 value: `**Status:** ${status === 'running' ? '🟢 Running' : '🔴 Paused'}\n` +
                        `**Vote Active:** ${config.voteActive ? '✅ Yes' : '❌ No'}\n` +
                        `**Seeded:** ${config.seeded ? '✅ Yes' : '❌ No'}\n` +
-                       `**Seeder VIP Reward:** ${seederVipRewardEnabled === null ? '❔ Unknown' : (seederVipRewardEnabled ? '✅ ON' : '❌ OFF')}\n` +
                        `**Activate at:** ${config.minimumPlayers} players\n` +
                        `**Deactivate at:** ${config.deactivatePlayers} players`,
                 inline: true
@@ -231,19 +225,6 @@ class MapVotePanelService {
                     .setLabel('Settings')
                     .setEmoji('⚙️')
                     .setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder()
-                    .setCustomId('mapvote_toggle_seed_vip')
-                    .setLabel(
-                        seederVipRewardEnabled === null
-                            ? 'Seeder VIP Reward ?'
-                            : (seederVipRewardEnabled ? 'Seeder VIP Reward ON' : 'Seeder VIP Reward OFF')
-                    )
-                    .setEmoji(seederVipRewardEnabled === null ? '❔' : (seederVipRewardEnabled ? '✅' : '🚫'))
-                    .setStyle(
-                        seederVipRewardEnabled === null
-                            ? ButtonStyle.Secondary
-                            : (seederVipRewardEnabled ? ButtonStyle.Success : ButtonStyle.Danger)
-                    ),
                 new ButtonBuilder()
                     .setCustomId('mapvote_history')
                     .setLabel('History')

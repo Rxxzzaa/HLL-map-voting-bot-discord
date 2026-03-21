@@ -1,16 +1,8 @@
-function isSeederVipToggleButton(customId) {
-    return (
-        customId === 'mapvote_toggle_seed_vip' ||
-        customId.startsWith('mapvote_toggle_seed_vip_') ||
-        customId === 'mapvote_toggle_seeding' ||
-        customId.startsWith('mapvote_toggle_seeding_')
-    );
-}
-
 function isMapVoteToggleButton(customId) {
     return (
         (customId === 'mapvote_toggle' || customId.startsWith('mapvote_toggle_')) &&
-        !isSeederVipToggleButton(customId)
+        !customId.startsWith('mapvote_toggle_seed_vip') &&
+        !customId.startsWith('mapvote_toggle_seeding')
     );
 }
 
@@ -26,7 +18,6 @@ function getScheduleWhitelistServerNum(customId) {
 }
 
 module.exports = {
-    isSeederVipToggleButton,
     isMapVoteToggleButton,
     getScheduleWhitelistServerNum
 };

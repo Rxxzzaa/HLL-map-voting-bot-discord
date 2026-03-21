@@ -18,7 +18,6 @@ const scheduleManager = require('./services/scheduleManager');
 const schedulePanel = require('./services/schedulePanel');
 const { registerCommands } = require('./commands/register');
 const {
-    isSeederVipToggleButton,
     isMapVoteToggleButton,
     getScheduleWhitelistServerNum
 } = require('./utils/buttonRouting');
@@ -431,30 +430,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 return interaction.reply({ content: 'Map voting service not available for this server.', flags: MessageFlags.Ephemeral });
             }
 
-            // Toggle Seeder VIP Reward via CRCON API
-            if (isSeederVipToggleButton(customId)) {
-                await interaction.deferUpdate();
-
-                try {
-                    const newEnabled = await crcon.toggleSeederVipRewardEnabled();
-
-                    const panel = await mapVotePanelService.buildControlPanel(service, crcon, serverName);
-                    await updatePanelMessage(interaction, panel);
-                    await followUpEphemeralAutoDelete(
-                        interaction,
-                        `Seeder VIP Reward ${newEnabled ? 'enabled' : 'disabled'} for ${serverName} via CRCON.`
-                    );
-                } catch (e) {
-                    logger.error(`Failed to toggle Seeder VIP Reward for ${serverName}:`, e);
-                    await followUpEphemeralAutoDelete(
-                        interaction,
-                        `Failed to toggle Seeder VIP Reward via CRCON: ${e.message}`
-                    );
-                }
-            }
-
             // Toggle map voting
-            else if (isMapVoteToggleButton(customId)) {
+            if (isMapVoteToggleButton(customId)) {
                 await interaction.deferUpdate();
 
                 let responseMessage = '';
