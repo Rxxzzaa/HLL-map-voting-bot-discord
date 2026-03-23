@@ -240,6 +240,31 @@ class CRCONService {
             reset_to_default: resetToDefault
         });
     }
+
+    // Auto Mod - Level
+    async describeAutoModLevelConfig() {
+        return this.get('describe_auto_mod_level_config');
+    }
+
+    async getAutoModLevelConfig() {
+        return this.get('get_auto_mod_level_config');
+    }
+
+    async validateAutoModLevelConfig(by, config, resetToDefault = false) {
+        return this.post('validate_auto_mod_level_config', {
+            by,
+            config,
+            reset_to_default: resetToDefault
+        });
+    }
+
+    async setAutoModLevelConfig(by, config, resetToDefault = false) {
+        return this.post('set_auto_mod_level_config', {
+            by,
+            config,
+            reset_to_default: resetToDefault
+        });
+    }
 }
 
 // Create service instances

@@ -41,6 +41,7 @@ let isDiscordReady = false;
 let healthServer = null;
 const autoModSoloTankDrafts = new Map();
 const autoModNoLeaderDrafts = new Map();
+const autoModLevelDrafts = new Map();
 
 function buildHealthPayload() {
     return {
@@ -245,6 +246,15 @@ function parseAutoModValue(rawValue, fieldType) {
     }
 
     return value;
+}
+
+function getDefaultLevelThresholds() {
+    return {
+        officer: { label: 'Officer', min_level: 30, min_players: 75 },
+        spotter: { label: 'Reco (spotter)', min_level: 30, min_players: 75 },
+        armycommander: { label: 'Commander', min_level: 50, min_players: 75 },
+        tankcommander: { label: 'Tank Commander', min_level: 30, min_players: 75 }
+    };
 }
 
 // Ready event
@@ -748,9 +758,75 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await updatePanelMessage(interaction, panel);
                 }
 
-                else if (customId.startsWith('automod_level_')) {
+                else if (customId.startsWith('automod_level_general_back_') || customId.startsWith('automod_level_roles_back_')) {
                     await interaction.deferUpdate();
-                    await followUpEphemeralAutoDelete(interaction, 'This automod panel is not implemented yet.');
+                    const panel = mapVotePanelService.buildAutomodsPanel(automodServerNum, automodServerName);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                else if (customId.startsWith('automod_level_general_refresh_') || customId.startsWith('automod_level_roles_refresh_')) {
+                    await interaction.deferUpdate();
+                    const response = await automodCrcon.getAutoModLevelConfig();
+                    const draft = response?.result || {};
+                    draft.level_thresholds = { ...getDefaultLevelThresholds(), ...(draft.level_thresholds || {}) };
+                    autoModLevelDrafts.set(
+                        getAutoModDraftKey(automodServerNum, interaction.user.id),
+                        draft
+                    );
+
+                    const panel = customId.startsWith('automod_level_roles_')
+                        ? mapVotePanelService.buildAutoModLevelRolesPanel(automodServerNum, automodServerName, draft, 'server')
+                        : mapVotePanelService.buildAutoModLevelGeneralPanel(automodServerNum, automodServerName, draft, 'server');
+                    await updatePanelMessage(interaction, panel);
+                    await followUpEphemeralAutoDelete(interaction, 'Level config reloaded from server.');
+                }
+
+                else if (customId.startsWith('automod_level_general_commit_') || customId.startsWith('automod_level_roles_commit_')) {
+                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                    const draftKey = getAutoModDraftKey(automodServerNum, interaction.user.id);
+                    const draft = autoModLevelDrafts.get(draftKey);
+                    if (!draft) {
+                        await interaction.editReply({
+                            content: 'No Level draft found. Open a Level panel first.'
+                        });
+                        return;
+                    }
+
+                    try {
+                        await automodCrcon.setAutoModLevelConfig(interaction.user.username, draft, false);
+                        await interaction.editReply({ content: 'Level config committed successfully.' });
+
+                        const refreshed = await automodCrcon.getAutoModLevelConfig();
+                        const serverConfig = refreshed?.result || draft;
+                        serverConfig.level_thresholds = { ...getDefaultLevelThresholds(), ...(serverConfig.level_thresholds || {}) };
+                        autoModLevelDrafts.set(draftKey, serverConfig);
+
+                        const panel = customId.startsWith('automod_level_roles_')
+                            ? mapVotePanelService.buildAutoModLevelRolesPanel(automodServerNum, automodServerName, serverConfig, 'server')
+                            : mapVotePanelService.buildAutoModLevelGeneralPanel(automodServerNum, automodServerName, serverConfig, 'server');
+                        await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                    } catch (e) {
+                        await interaction.editReply({
+                            content: `Failed to commit Level config: ${e.message}`
+                        });
+                    }
+                }
+
+                else if (customId.startsWith('automod_level_general_') || customId.startsWith('automod_level_roles_')) {
+                    await interaction.deferUpdate();
+                    const response = await automodCrcon.getAutoModLevelConfig();
+                    const draft = response?.result || {};
+                    draft.level_thresholds = { ...getDefaultLevelThresholds(), ...(draft.level_thresholds || {}) };
+                    autoModLevelDrafts.set(
+                        getAutoModDraftKey(automodServerNum, interaction.user.id),
+                        draft
+                    );
+
+                    const panel = customId.startsWith('automod_level_roles_')
+                        ? mapVotePanelService.buildAutoModLevelRolesPanel(automodServerNum, automodServerName, draft, 'server')
+                        : mapVotePanelService.buildAutoModLevelGeneralPanel(automodServerNum, automodServerName, draft, 'server');
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 else if (customId.startsWith('automod_no_leader_back_')) {
@@ -1324,6 +1400,98 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await interaction.showModal(modal);
             }
 
+            // Select Level general field to edit
+            else if (customId.startsWith('automod_level_general_field_')) {
+                if (!isAdmin(interaction.member)) {
+                    return interaction.reply({ content: 'You do not have permission.', flags: MessageFlags.Ephemeral });
+                }
+
+                const srvNum = parseInt(customId.split('_').pop(), 10);
+                const fieldKey = interaction.values[0];
+                const fieldDefs = mapVotePanelService.getLevelGeneralFieldDefinitions();
+                const fieldDef = fieldDefs.find(field => field.key === fieldKey);
+                if (!fieldDef) {
+                    return interaction.reply({ content: 'Unknown field selected.', flags: MessageFlags.Ephemeral });
+                }
+
+                const draftKey = getAutoModDraftKey(srvNum, interaction.user.id);
+                const draft = autoModLevelDrafts.get(draftKey) || {};
+                let currentValue = draft[fieldKey];
+                if (fieldDef.type === 'string_array') {
+                    currentValue = Array.isArray(currentValue) ? currentValue.join(', ') : '';
+                } else if (currentValue === null || currentValue === undefined) {
+                    currentValue = '';
+                } else {
+                    currentValue = String(currentValue);
+                }
+
+                const modal = new ModalBuilder()
+                    .setCustomId(`automod_level_general_modal_${srvNum}_${fieldKey}`)
+                    .setTitle(`Edit ${fieldDef.label}`)
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('value')
+                                .setLabel(`${fieldDef.label} (${fieldDef.type})`)
+                                .setStyle(fieldDef.multiline ? TextInputStyle.Paragraph : TextInputStyle.Short)
+                                .setRequired(false)
+                                .setValue(currentValue.substring(0, 4000))
+                        )
+                    );
+
+                await interaction.showModal(modal);
+            }
+
+            // Select role threshold to edit
+            else if (customId.startsWith('automod_level_roles_select_')) {
+                if (!isAdmin(interaction.member)) {
+                    return interaction.reply({ content: 'You do not have permission.', flags: MessageFlags.Ephemeral });
+                }
+
+                const srvNum = parseInt(customId.split('_').pop(), 10);
+                const roleKey = interaction.values[0];
+                const roleKeys = mapVotePanelService.getLevelRoleKeys();
+                if (!roleKeys.includes(roleKey)) {
+                    return interaction.reply({ content: 'Unknown role selected.', flags: MessageFlags.Ephemeral });
+                }
+
+                const draftKey = getAutoModDraftKey(srvNum, interaction.user.id);
+                const draft = autoModLevelDrafts.get(draftKey) || { level_thresholds: getDefaultLevelThresholds() };
+                const roleConfig = draft.level_thresholds?.[roleKey] || getDefaultLevelThresholds()[roleKey];
+
+                const modal = new ModalBuilder()
+                    .setCustomId(`automod_level_roles_modal_${srvNum}_${roleKey}`)
+                    .setTitle(`Edit ${roleKey}`)
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('label')
+                                .setLabel('Label')
+                                .setStyle(TextInputStyle.Short)
+                                .setRequired(true)
+                                .setValue(String(roleConfig?.label || roleKey).substring(0, 100))
+                        ),
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('min_level')
+                                .setLabel('Min Level')
+                                .setStyle(TextInputStyle.Short)
+                                .setRequired(true)
+                                .setValue(String(roleConfig?.min_level ?? 0))
+                        ),
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('min_players')
+                                .setLabel('Min Players')
+                                .setStyle(TextInputStyle.Short)
+                                .setRequired(true)
+                                .setValue(String(roleConfig?.min_players ?? 0))
+                        )
+                    );
+
+                await interaction.showModal(modal);
+            }
+
             // Toggle maps in schedule whitelist
             else if (customId.startsWith('sched_wl_toggle_')) {
                 const parts = customId.split('_');
@@ -1527,6 +1695,117 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 );
 
                 await interaction.editReply({ content: `Updated **${fieldDef.label}**.` });
+                await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                return;
+            }
+
+            if (customId.startsWith('automod_level_general_modal_')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const match = customId.match(/^automod_level_general_modal_(\d+)_(.+)$/);
+                if (!match) {
+                    await interaction.editReply({ content: 'Invalid automod modal ID.' });
+                    return;
+                }
+
+                const srvNum = parseInt(match[1], 10);
+                const fieldKey = match[2];
+                const fieldDefs = mapVotePanelService.getLevelGeneralFieldDefinitions();
+                const fieldDef = fieldDefs.find(field => field.key === fieldKey);
+
+                if (!fieldDef) {
+                    await interaction.editReply({ content: 'Unknown field submitted.' });
+                    return;
+                }
+
+                const rawValue = interaction.fields.getTextInputValue('value');
+                const draftKey = getAutoModDraftKey(srvNum, interaction.user.id);
+                const draft = autoModLevelDrafts.get(draftKey) || { level_thresholds: getDefaultLevelThresholds() };
+
+                let parsedValue;
+                try {
+                    parsedValue = parseAutoModValue(rawValue, fieldDef.type);
+                } catch (e) {
+                    await interaction.editReply({ content: `Invalid value: ${e.message}` });
+                    return;
+                }
+
+                draft[fieldKey] = parsedValue;
+                if (!draft.level_thresholds) {
+                    draft.level_thresholds = getDefaultLevelThresholds();
+                }
+                autoModLevelDrafts.set(draftKey, draft);
+
+                const config = configManager.getEffectiveServerConfig(srvNum);
+                const serverName = config.serverName || `Server ${srvNum}`;
+                const panel = mapVotePanelService.buildAutoModLevelGeneralPanel(
+                    srvNum,
+                    serverName,
+                    draft,
+                    'draft'
+                );
+
+                await interaction.editReply({ content: `Updated **${fieldDef.label}**.` });
+                await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                return;
+            }
+
+            if (customId.startsWith('automod_level_roles_modal_')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const match = customId.match(/^automod_level_roles_modal_(\d+)_(.+)$/);
+                if (!match) {
+                    await interaction.editReply({ content: 'Invalid automod modal ID.' });
+                    return;
+                }
+
+                const srvNum = parseInt(match[1], 10);
+                const roleKey = match[2];
+                const roleKeys = mapVotePanelService.getLevelRoleKeys();
+                if (!roleKeys.includes(roleKey)) {
+                    await interaction.editReply({ content: 'Unknown role submitted.' });
+                    return;
+                }
+
+                const label = interaction.fields.getTextInputValue('label').trim();
+                const minLevelRaw = interaction.fields.getTextInputValue('min_level');
+                const minPlayersRaw = interaction.fields.getTextInputValue('min_players');
+
+                let minLevel;
+                let minPlayers;
+                try {
+                    minLevel = parseAutoModValue(minLevelRaw, 'integer');
+                    minPlayers = parseAutoModValue(minPlayersRaw, 'integer');
+                } catch (e) {
+                    await interaction.editReply({ content: `Invalid role threshold value: ${e.message}` });
+                    return;
+                }
+
+                if (!label) {
+                    await interaction.editReply({ content: 'Label cannot be empty.' });
+                    return;
+                }
+
+                const draftKey = getAutoModDraftKey(srvNum, interaction.user.id);
+                const draft = autoModLevelDrafts.get(draftKey) || {};
+                draft.level_thresholds = { ...getDefaultLevelThresholds(), ...(draft.level_thresholds || {}) };
+                draft.level_thresholds[roleKey] = {
+                    label,
+                    min_level: minLevel,
+                    min_players: minPlayers
+                };
+                autoModLevelDrafts.set(draftKey, draft);
+
+                const config = configManager.getEffectiveServerConfig(srvNum);
+                const serverName = config.serverName || `Server ${srvNum}`;
+                const panel = mapVotePanelService.buildAutoModLevelRolesPanel(
+                    srvNum,
+                    serverName,
+                    draft,
+                    'draft'
+                );
+
+                await interaction.editReply({ content: `Updated role threshold **${roleKey}**.` });
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                 return;
             }

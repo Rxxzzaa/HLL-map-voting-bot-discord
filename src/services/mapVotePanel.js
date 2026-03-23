@@ -54,6 +54,39 @@ const NO_LEADER_FIELD_DEFS = [
     { key: 'dont_do_anything_below_this_number_of_players', label: 'Minimum Players For Any Action', type: 'integer' }
 ];
 
+const LEVEL_GENERAL_FIELD_DEFS = [
+    { key: 'dry_run', label: 'Dry Run', type: 'boolean' },
+    { key: 'enabled', label: 'Enabled', type: 'boolean' },
+    { key: 'max_level', label: 'Max Level', type: 'integer' },
+    { key: 'min_level', label: 'Min Level', type: 'integer' },
+    { key: 'kick_message', label: 'Kick Message', type: 'string', multiline: true },
+    { key: 'punish_message', label: 'Punish Message', type: 'string', multiline: true },
+    { key: 'warning_message', label: 'Warning Message', type: 'string', multiline: true },
+    { key: 'whitelist_flags', label: 'Whitelist Flags', type: 'string_array' },
+    { key: 'levelbug_enabled', label: 'Levelbug Enabled', type: 'boolean' },
+    { key: 'max_level_message', label: 'Max Level Message', type: 'string', multiline: true },
+    { key: 'min_level_message', label: 'Min Level Message', type: 'string', multiline: true },
+    { key: 'violation_message', label: 'Violation Message', type: 'string', multiline: true },
+    { key: 'force_kick_message', label: 'Force Kick Message', type: 'string', multiline: true },
+    { key: 'number_of_warnings', label: 'Number Of Warnings', type: 'integer' },
+    { key: 'discord_webhook_url', label: 'Discord Webhook Url', type: 'nullable_string' },
+    { key: 'announcement_enabled', label: 'Announcement Enabled', type: 'boolean' },
+    { key: 'announcement_message', label: 'Announcement Message', type: 'string', multiline: true },
+    { key: 'kick_after_max_punish', label: 'Kick After Max Punish', type: 'boolean' },
+    { key: 'number_of_punishments', label: 'Number Of Punishments', type: 'integer' },
+    { key: 'punish_interval_seconds', label: 'Punish Interval Seconds', type: 'integer' },
+    { key: 'warning_interval_seconds', label: 'Warning Interval Seconds', type: 'integer' },
+    { key: 'kick_grace_period_seconds', label: 'Kick Grace Period Seconds', type: 'integer' },
+    { key: 'min_squad_players_for_kick', label: 'Min Squad Players For Kick', type: 'integer' },
+    { key: 'min_server_players_for_kick', label: 'Min Server Players For Kick', type: 'integer' },
+    { key: 'min_squad_players_for_punish', label: 'Min Squad Players For Punish', type: 'integer' },
+    { key: 'min_server_players_for_punish', label: 'Min Server Players For Punish', type: 'integer' },
+    { key: 'only_announce_impacted_players', label: 'Only Announce Impacted Players', type: 'boolean' },
+    { key: 'dont_do_anything_below_this_number_of_players', label: 'Minimum Players For Any Action', type: 'integer' }
+];
+
+const LEVEL_ROLE_KEYS = ['officer', 'spotter', 'armycommander', 'tankcommander'];
+
 // Map categories for organization
 const MAP_CATEGORIES = {
     western_front: {
@@ -657,6 +690,14 @@ class MapVotePanelService {
         return NO_LEADER_FIELD_DEFS;
     }
 
+    getLevelGeneralFieldDefinitions() {
+        return LEVEL_GENERAL_FIELD_DEFS;
+    }
+
+    getLevelRoleKeys() {
+        return LEVEL_ROLE_KEYS;
+    }
+
     buildAutomodsPanel(serverNum, serverName = 'Server') {
         const embed = new EmbedBuilder()
             .setTitle(`🤖 Automods - ${serverName}`)
@@ -664,7 +705,8 @@ class MapVotePanelService {
             .setDescription(
                 'Manage CRCON automod modules.\n\n' +
                 'Choose a module below:\n' +
-                '• Level\n' +
+                '• Level - General Settings\n' +
+                '• Level - Role Levels\n' +
                 '• No Leader\n' +
                 '• No Solo Tank'
             )
@@ -672,8 +714,12 @@ class MapVotePanelService {
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-                .setCustomId(`automod_level_${serverNum}`)
-                .setLabel('Level')
+                .setCustomId(`automod_level_general_${serverNum}`)
+                .setLabel('Level - General Settings')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`automod_level_roles_${serverNum}`)
+                .setLabel('Level - Role Levels')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId(`automod_no_leader_${serverNum}`)
@@ -730,6 +776,99 @@ class MapVotePanelService {
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
                 .setCustomId(`automod_solo_tank_back_${serverNum}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [selectRow, actionRow] };
+    }
+
+    buildAutoModLevelGeneralPanel(serverNum, serverName = 'Server', draftConfig = {}, source = 'server') {
+        const embed = new EmbedBuilder()
+            .setTitle(`📈 Level Config - General - ${serverName}`)
+            .setColor(0x8E44AD)
+            .setDescription(
+                `Source: **${source}**\n` +
+                'Edit the general level automod settings. Role thresholds are managed in the Level - Role Levels panel.\n\n' +
+                this.buildLevelGeneralConfigTable(draftConfig)
+            )
+            .setFooter({ text: 'Edits are local until Commit Changes is pressed' });
+
+        const selectOptions = LEVEL_GENERAL_FIELD_DEFS.map(field => ({
+            label: field.label.substring(0, 100),
+            value: field.key,
+            description: this.formatAutoModValueForSelect(draftConfig[field.key], field.type)
+        }));
+
+        const selectRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`automod_level_general_field_${serverNum}`)
+                .setPlaceholder('Select a general field to edit...')
+                .addOptions(selectOptions)
+        );
+
+        const actionRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`automod_level_general_refresh_${serverNum}`)
+                .setLabel('Refresh')
+                .setEmoji('🔄')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`automod_level_general_commit_${serverNum}`)
+                .setLabel('Commit Changes')
+                .setEmoji('✅')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`automod_level_general_back_${serverNum}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [selectRow, actionRow] };
+    }
+
+    buildAutoModLevelRolesPanel(serverNum, serverName = 'Server', draftConfig = {}, source = 'server') {
+        const embed = new EmbedBuilder()
+            .setTitle(`📊 Level Config - Role Levels - ${serverName}`)
+            .setColor(0x2C3E50)
+            .setDescription(
+                `Source: **${source}**\n` +
+                'Select a role threshold to edit label/min_level/min_players.\n\n' +
+                this.buildLevelRolesTable(draftConfig.level_thresholds || {})
+            )
+            .setFooter({ text: 'Edits are local until Commit Changes is pressed' });
+
+        const options = LEVEL_ROLE_KEYS.map(role => {
+            const value = draftConfig.level_thresholds?.[role] || {};
+            return {
+                label: role.substring(0, 100),
+                value: role,
+                description: `L=${value.min_level ?? 0}, P=${value.min_players ?? 0}, ${String(value.label || role).slice(0, 45)}`
+            };
+        });
+
+        const selectRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`automod_level_roles_select_${serverNum}`)
+                .setPlaceholder('Select a role threshold to edit...')
+                .addOptions(options)
+        );
+
+        const actionRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`automod_level_roles_refresh_${serverNum}`)
+                .setLabel('Refresh')
+                .setEmoji('🔄')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`automod_level_roles_commit_${serverNum}`)
+                .setLabel('Commit Changes')
+                .setEmoji('✅')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`automod_level_roles_back_${serverNum}`)
                 .setLabel('Back')
                 .setEmoji('⬅️')
                 .setStyle(ButtonStyle.Secondary)
@@ -795,6 +934,25 @@ class MapVotePanelService {
         const lines = NO_LEADER_FIELD_DEFS.map(field => {
             const value = this.formatAutoModValueForTable(config[field.key], field.type);
             return `${field.key}: ${value}`;
+        });
+        return `\`\`\`\n${lines.join('\n')}\n\`\`\``;
+    }
+
+    buildLevelGeneralConfigTable(config) {
+        const lines = LEVEL_GENERAL_FIELD_DEFS.map(field => {
+            const value = this.formatAutoModValueForTable(config[field.key], field.type);
+            return `${field.key}: ${value}`;
+        });
+        return `\`\`\`\n${lines.join('\n')}\n\`\`\``;
+    }
+
+    buildLevelRolesTable(levelThresholds) {
+        const lines = LEVEL_ROLE_KEYS.map(role => {
+            const value = levelThresholds?.[role] || {};
+            const label = value.label || role;
+            const minLevel = value.min_level ?? 0;
+            const minPlayers = value.min_players ?? 0;
+            return `${role}: { label: "${label}", min_level: ${minLevel}, min_players: ${minPlayers} }`;
         });
         return `\`\`\`\n${lines.join('\n')}\n\`\`\``;
     }
