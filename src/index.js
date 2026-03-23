@@ -40,6 +40,7 @@ const mapVotePanelService = new MapVotePanelService();
 let isDiscordReady = false;
 let healthServer = null;
 const autoModSoloTankDrafts = new Map();
+const autoModNoLeaderDrafts = new Map();
 
 function buildHealthPayload() {
     return {
@@ -747,9 +748,84 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await updatePanelMessage(interaction, panel);
                 }
 
-                else if (customId.startsWith('automod_level_') || customId.startsWith('automod_no_leader_')) {
+                else if (customId.startsWith('automod_level_')) {
                     await interaction.deferUpdate();
                     await followUpEphemeralAutoDelete(interaction, 'This automod panel is not implemented yet.');
+                }
+
+                else if (customId.startsWith('automod_no_leader_back_')) {
+                    await interaction.deferUpdate();
+                    const panel = mapVotePanelService.buildAutomodsPanel(automodServerNum, automodServerName);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                else if (customId.startsWith('automod_no_leader_refresh_')) {
+                    await interaction.deferUpdate();
+                    const response = await automodCrcon.getAutoModNoLeaderConfig();
+                    const draft = response?.result || {};
+                    autoModNoLeaderDrafts.set(
+                        getAutoModDraftKey(automodServerNum, interaction.user.id),
+                        draft
+                    );
+                    const panel = mapVotePanelService.buildAutoModNoLeaderPanel(
+                        automodServerNum,
+                        automodServerName,
+                        draft,
+                        'server'
+                    );
+                    await updatePanelMessage(interaction, panel);
+                    await followUpEphemeralAutoDelete(interaction, 'No Leader config reloaded from server.');
+                }
+
+                else if (customId.startsWith('automod_no_leader_commit_')) {
+                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                    const draftKey = getAutoModDraftKey(automodServerNum, interaction.user.id);
+                    const draft = autoModNoLeaderDrafts.get(draftKey);
+                    if (!draft) {
+                        await interaction.editReply({
+                            content: 'No draft found. Open No Leader panel and edit values first.'
+                        });
+                        return;
+                    }
+
+                    try {
+                        await automodCrcon.setAutoModNoLeaderConfig(interaction.user.username, draft, false);
+                        await interaction.editReply({ content: 'No Leader config committed successfully.' });
+
+                        const refreshed = await automodCrcon.getAutoModNoLeaderConfig();
+                        const serverConfig = refreshed?.result || draft;
+                        autoModNoLeaderDrafts.set(draftKey, serverConfig);
+
+                        const panel = mapVotePanelService.buildAutoModNoLeaderPanel(
+                            automodServerNum,
+                            automodServerName,
+                            serverConfig,
+                            'server'
+                        );
+                        await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                    } catch (e) {
+                        await interaction.editReply({
+                            content: `Failed to commit No Leader config: ${e.message}`
+                        });
+                    }
+                }
+
+                else if (customId.startsWith('automod_no_leader_')) {
+                    await interaction.deferUpdate();
+                    const response = await automodCrcon.getAutoModNoLeaderConfig();
+                    const draft = response?.result || {};
+                    autoModNoLeaderDrafts.set(
+                        getAutoModDraftKey(automodServerNum, interaction.user.id),
+                        draft
+                    );
+                    const panel = mapVotePanelService.buildAutoModNoLeaderPanel(
+                        automodServerNum,
+                        automodServerName,
+                        draft,
+                        'server'
+                    );
+                    await updatePanelMessage(interaction, panel);
                 }
 
                 else if (customId.startsWith('automod_solo_tank_back_')) {
@@ -1206,6 +1282,48 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await interaction.showModal(modal);
             }
 
+            // Select No Leader field to edit
+            else if (customId.startsWith('automod_no_leader_field_')) {
+                if (!isAdmin(interaction.member)) {
+                    return interaction.reply({ content: 'You do not have permission.', flags: MessageFlags.Ephemeral });
+                }
+
+                const srvNum = parseInt(customId.split('_').pop(), 10);
+                const fieldKey = interaction.values[0];
+                const fieldDefs = mapVotePanelService.getNoLeaderFieldDefinitions();
+                const fieldDef = fieldDefs.find(field => field.key === fieldKey);
+                if (!fieldDef) {
+                    return interaction.reply({ content: 'Unknown field selected.', flags: MessageFlags.Ephemeral });
+                }
+
+                const draftKey = getAutoModDraftKey(srvNum, interaction.user.id);
+                const draft = autoModNoLeaderDrafts.get(draftKey) || {};
+                let currentValue = draft[fieldKey];
+                if (fieldDef.type === 'string_array') {
+                    currentValue = Array.isArray(currentValue) ? currentValue.join(', ') : '';
+                } else if (currentValue === null || currentValue === undefined) {
+                    currentValue = '';
+                } else {
+                    currentValue = String(currentValue);
+                }
+
+                const modal = new ModalBuilder()
+                    .setCustomId(`automod_no_leader_modal_${srvNum}_${fieldKey}`)
+                    .setTitle(`Edit ${fieldDef.label}`)
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('value')
+                                .setLabel(`${fieldDef.label} (${fieldDef.type})`)
+                                .setStyle(fieldDef.multiline ? TextInputStyle.Paragraph : TextInputStyle.Short)
+                                .setRequired(false)
+                                .setValue(currentValue.substring(0, 4000))
+                        )
+                    );
+
+                await interaction.showModal(modal);
+            }
+
             // Toggle maps in schedule whitelist
             else if (customId.startsWith('sched_wl_toggle_')) {
                 const parts = customId.split('_');
@@ -1354,6 +1472,54 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const config = configManager.getEffectiveServerConfig(srvNum);
                 const serverName = config.serverName || `Server ${srvNum}`;
                 const panel = mapVotePanelService.buildAutoModSoloTankPanel(
+                    srvNum,
+                    serverName,
+                    draft,
+                    'draft'
+                );
+
+                await interaction.editReply({ content: `Updated **${fieldDef.label}**.` });
+                await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                return;
+            }
+
+            if (customId.startsWith('automod_no_leader_modal_')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const match = customId.match(/^automod_no_leader_modal_(\d+)_(.+)$/);
+                if (!match) {
+                    await interaction.editReply({ content: 'Invalid automod modal ID.' });
+                    return;
+                }
+
+                const srvNum = parseInt(match[1], 10);
+                const fieldKey = match[2];
+                const fieldDefs = mapVotePanelService.getNoLeaderFieldDefinitions();
+                const fieldDef = fieldDefs.find(field => field.key === fieldKey);
+
+                if (!fieldDef) {
+                    await interaction.editReply({ content: 'Unknown field submitted.' });
+                    return;
+                }
+
+                const rawValue = interaction.fields.getTextInputValue('value');
+                const draftKey = getAutoModDraftKey(srvNum, interaction.user.id);
+                const draft = autoModNoLeaderDrafts.get(draftKey) || {};
+
+                let parsedValue;
+                try {
+                    parsedValue = parseAutoModValue(rawValue, fieldDef.type);
+                } catch (e) {
+                    await interaction.editReply({ content: `Invalid value: ${e.message}` });
+                    return;
+                }
+
+                draft[fieldKey] = parsedValue;
+                autoModNoLeaderDrafts.set(draftKey, draft);
+
+                const config = configManager.getEffectiveServerConfig(srvNum);
+                const serverName = config.serverName || `Server ${srvNum}`;
+                const panel = mapVotePanelService.buildAutoModNoLeaderPanel(
                     srvNum,
                     serverName,
                     draft,

@@ -215,6 +215,31 @@ class CRCONService {
             reset_to_default: resetToDefault
         });
     }
+
+    // Auto Mod - No Leader
+    async describeAutoModNoLeaderConfig() {
+        return this.get('describe_auto_mod_no_leader_config');
+    }
+
+    async getAutoModNoLeaderConfig() {
+        return this.get('get_auto_mod_no_leader_config');
+    }
+
+    async validateAutoModNoLeaderConfig(by, config, resetToDefault = false) {
+        return this.post('validate_auto_mod_no_leader_config', {
+            by,
+            config,
+            reset_to_default: resetToDefault
+        });
+    }
+
+    async setAutoModNoLeaderConfig(by, config, resetToDefault = false) {
+        return this.post('set_auto_mod_no_leader_config', {
+            by,
+            config,
+            reset_to_default: resetToDefault
+        });
+    }
 }
 
 // Create service instances

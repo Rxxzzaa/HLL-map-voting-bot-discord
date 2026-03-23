@@ -29,6 +29,31 @@ const SOLO_TANK_FIELD_DEFS = [
     { key: 'dont_do_anything_below_this_number_of_players', label: 'Minimum Players For Any Action', type: 'integer' }
 ];
 
+const NO_LEADER_FIELD_DEFS = [
+    { key: 'dry_run', label: 'Dry Run', type: 'boolean' },
+    { key: 'enabled', label: 'Enabled', type: 'boolean' },
+    { key: 'immune_roles', label: 'Immune Roles', type: 'string_array' },
+    { key: 'kick_message', label: 'Kick Message', type: 'string', multiline: true },
+    { key: 'punish_message', label: 'Punish Message', type: 'string', multiline: true },
+    { key: 'number_of_notes', label: 'Number Of Notes', type: 'integer' },
+    { key: 'warning_message', label: 'Warning Message', type: 'string', multiline: true },
+    { key: 'whitelist_flags', label: 'Whitelist Flags', type: 'string_array' },
+    { key: 'number_of_warnings', label: 'Number Of Warnings', type: 'integer' },
+    { key: 'discord_webhook_url', label: 'Discord Webhook Url', type: 'nullable_string' },
+    { key: 'immune_player_level', label: 'Immune Player Level', type: 'integer' },
+    { key: 'kick_after_max_punish', label: 'Kick After Max Punish', type: 'boolean' },
+    { key: 'number_of_punishments', label: 'Number Of Punishments', type: 'integer' },
+    { key: 'notes_interval_seconds', label: 'Notes Interval Seconds', type: 'integer' },
+    { key: 'punish_interval_seconds', label: 'Punish Interval Seconds', type: 'integer' },
+    { key: 'warning_interval_seconds', label: 'Warning Interval Seconds', type: 'integer' },
+    { key: 'kick_grace_period_seconds', label: 'Kick Grace Period Seconds', type: 'integer' },
+    { key: 'min_squad_players_for_kick', label: 'Min Squad Players For Kick', type: 'integer' },
+    { key: 'min_server_players_for_kick', label: 'Min Server Players For Kick', type: 'integer' },
+    { key: 'min_squad_players_for_punish', label: 'Min Squad Players For Punish', type: 'integer' },
+    { key: 'min_server_players_for_punish', label: 'Min Server Players For Punish', type: 'integer' },
+    { key: 'dont_do_anything_below_this_number_of_players', label: 'Minimum Players For Any Action', type: 'integer' }
+];
+
 // Map categories for organization
 const MAP_CATEGORIES = {
     western_front: {
@@ -628,6 +653,10 @@ class MapVotePanelService {
         return SOLO_TANK_FIELD_DEFS;
     }
 
+    getNoLeaderFieldDefinitions() {
+        return NO_LEADER_FIELD_DEFS;
+    }
+
     buildAutomodsPanel(serverNum, serverName = 'Server') {
         const embed = new EmbedBuilder()
             .setTitle(`🤖 Automods - ${serverName}`)
@@ -678,7 +707,7 @@ class MapVotePanelService {
         const selectOptions = SOLO_TANK_FIELD_DEFS.map(field => ({
             label: field.label.substring(0, 100),
             value: field.key,
-            description: this.formatSoloTankValueForSelect(draftConfig[field.key], field.type)
+            description: this.formatAutoModValueForSelect(draftConfig[field.key], field.type)
         }));
 
         const selectRow = new ActionRowBuilder().addComponents(
@@ -709,20 +738,73 @@ class MapVotePanelService {
         return { embeds: [embed], components: [selectRow, actionRow] };
     }
 
+    buildAutoModNoLeaderPanel(serverNum, serverName = 'Server', draftConfig = {}, source = 'server') {
+        const embed = new EmbedBuilder()
+            .setTitle(`🧭 No Leader Config - ${serverName}`)
+            .setColor(0x1ABC9C)
+            .setDescription(
+                `Source: **${source}**\n` +
+                'Select a field from the dropdown to edit it, then click **Commit Changes** to apply to CRCON.\n\n' +
+                this.buildNoLeaderConfigTable(draftConfig)
+            )
+            .setFooter({ text: 'Edits are local until Commit Changes is pressed' });
+
+        const selectOptions = NO_LEADER_FIELD_DEFS.map(field => ({
+            label: field.label.substring(0, 100),
+            value: field.key,
+            description: this.formatAutoModValueForSelect(draftConfig[field.key], field.type)
+        }));
+
+        const selectRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`automod_no_leader_field_${serverNum}`)
+                .setPlaceholder('Select a field to edit...')
+                .addOptions(selectOptions)
+        );
+
+        const actionRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`automod_no_leader_refresh_${serverNum}`)
+                .setLabel('Refresh')
+                .setEmoji('🔄')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`automod_no_leader_commit_${serverNum}`)
+                .setLabel('Commit Changes')
+                .setEmoji('✅')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`automod_no_leader_back_${serverNum}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [selectRow, actionRow] };
+    }
+
     buildSoloTankConfigTable(config) {
         const lines = SOLO_TANK_FIELD_DEFS.map(field => {
-            const value = this.formatSoloTankValueForTable(config[field.key], field.type);
+            const value = this.formatAutoModValueForTable(config[field.key], field.type);
             return `${field.key}: ${value}`;
         });
         return `\`\`\`\n${lines.join('\n')}\n\`\`\``;
     }
 
-    formatSoloTankValueForSelect(value, type) {
-        const raw = this.formatSoloTankValueForTable(value, type);
+    buildNoLeaderConfigTable(config) {
+        const lines = NO_LEADER_FIELD_DEFS.map(field => {
+            const value = this.formatAutoModValueForTable(config[field.key], field.type);
+            return `${field.key}: ${value}`;
+        });
+        return `\`\`\`\n${lines.join('\n')}\n\`\`\``;
+    }
+
+    formatAutoModValueForSelect(value, type) {
+        const raw = this.formatAutoModValueForTable(value, type);
         return raw.length > 95 ? `${raw.slice(0, 92)}...` : raw;
     }
 
-    formatSoloTankValueForTable(value, type) {
+    formatAutoModValueForTable(value, type) {
         if (value === null || value === undefined) {
             return 'null';
         }
