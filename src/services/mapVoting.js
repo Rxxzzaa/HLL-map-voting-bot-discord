@@ -7,6 +7,7 @@
 const logger = require('../utils/logger');
 const { crconService } = require('./crcon');
 const scheduleManager = require('./scheduleManager');
+const automodPresetManager = require('./automodPresetManager');
 const voteStore = require('./voteStore');
 
 class MapVotingService {
@@ -281,7 +282,12 @@ class MapVotingService {
                 isDefault: schedule.isDefault || false,
                 isOverride: schedule.isOverride || false,
                 settings: schedule.settings,
-                whitelist: schedule.whitelist // null = use CRCON whitelist, array = custom
+                whitelist: schedule.whitelist, // null = use CRCON whitelist, array = custom
+                automodProfiles: schedule.automodProfiles || {
+                    level: null,
+                    no_leader: null,
+                    solo_tank: null
+                }
             };
         } catch (error) {
             logger.warn(`[MapVoting S${this.serverNum}] Error getting schedule:`, error.message);
@@ -291,7 +297,12 @@ class MapVotingService {
                 isDefault: true,
                 isOverride: false,
                 settings: null,
-                whitelist: null
+                whitelist: null,
+                automodProfiles: {
+                    level: null,
+                    no_leader: null,
+                    solo_tank: null
+                }
             };
         }
     }
@@ -299,7 +310,7 @@ class MapVotingService {
     /**
      * Apply schedule settings if changed
      */
-    applyScheduleSettings() {
+    async applyScheduleSettings() {
         const schedule = this.getActiveScheduleSettings();
 
         // Check if schedule changed
@@ -312,11 +323,11 @@ class MapVotingService {
                     this.pendingScheduleTransition = true;
                     logger.info(`[MapVoting S${this.serverNum}] Schedule transition pending until match ends`);
                 } else {
-                    this.applyScheduleSettingsNow(schedule);
+                    await this.applyScheduleSettingsNow(schedule);
                 }
             } else {
                 // First run - apply settings immediately
-                this.applyScheduleSettingsNow(schedule);
+                await this.applyScheduleSettingsNow(schedule);
             }
             this.lastScheduleId = schedule.scheduleId;
         }
@@ -327,7 +338,7 @@ class MapVotingService {
     /**
      * Apply schedule settings immediately
      */
-    applyScheduleSettingsNow(schedule) {
+    async applyScheduleSettingsNow(schedule) {
         if (!schedule) {
             schedule = this.getActiveScheduleSettings();
         }
@@ -351,9 +362,51 @@ class MapVotingService {
                 `minPlayers=${this.minimumPlayers}, mapsPerVote=${this.mapsPerVote}, nightMaps=${this.nightMapCount}`);
         }
 
+        await this.applyScheduleAutomodProfiles(schedule);
+
         // Clear cache to pick up new whitelist
         this.clearCache();
         this.pendingScheduleTransition = false;
+    }
+
+    async applyScheduleAutomodProfiles(schedule) {
+        const profiles = schedule?.automodProfiles;
+        if (!profiles) return;
+
+        const applySpec = [
+            {
+                type: 'level',
+                presetId: profiles.level,
+                setter: (cfg) => this.crcon.setAutoModLevelConfig(`schedule:${schedule.scheduleName}`, cfg, false)
+            },
+            {
+                type: 'no_leader',
+                presetId: profiles.no_leader,
+                setter: (cfg) => this.crcon.setAutoModNoLeaderConfig(`schedule:${schedule.scheduleName}`, cfg, false)
+            },
+            {
+                type: 'solo_tank',
+                presetId: profiles.solo_tank,
+                setter: (cfg) => this.crcon.setAutoModSoloTankConfig(`schedule:${schedule.scheduleName}`, cfg, false)
+            }
+        ];
+
+        for (const spec of applySpec) {
+            if (!spec.presetId) continue;
+
+            const preset = automodPresetManager.getPresetById(this.serverNum, spec.type, spec.presetId);
+            if (!preset?.config) {
+                logger.warn(`[MapVoting S${this.serverNum}] Missing ${spec.type} preset ${spec.presetId} for schedule ${schedule.scheduleName}`);
+                continue;
+            }
+
+            try {
+                await spec.setter(preset.config);
+                logger.info(`[MapVoting S${this.serverNum}] Applied ${spec.type} preset "${preset.displayName}" for schedule "${schedule.scheduleName}"`);
+            } catch (error) {
+                logger.error(`[MapVoting S${this.serverNum}] Failed applying ${spec.type} preset "${preset.displayName}": ${error.message}`);
+            }
+        }
     }
 
     /**
@@ -798,7 +851,7 @@ class MapVotingService {
 
         try {
             // Check for schedule changes
-            this.applyScheduleSettings();
+            await this.applyScheduleSettings();
 
             const previousGameActive = this.gameActive;
             await this.getGameState();
@@ -813,7 +866,7 @@ class MapVotingService {
                 // Apply pending schedule transition
                 if (this.pendingScheduleTransition) {
                     logger.info(`[MapVoting S${this.serverNum}] Match ended - applying pending schedule transition`);
-                    this.applyScheduleSettingsNow();
+                    await this.applyScheduleSettingsNow();
                 }
             }
 

@@ -16,6 +16,7 @@ const configManager = require('./services/configManager');
 const setupWizard = require('./services/setupWizard');
 const scheduleManager = require('./services/scheduleManager');
 const schedulePanel = require('./services/schedulePanel');
+const automodPresetManager = require('./services/automodPresetManager');
 const { registerCommands } = require('./commands/register');
 const {
     isMapVoteToggleButton,
@@ -764,6 +765,42 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await updatePanelMessage(interaction, panel);
                 }
 
+                else if (
+                    customId.startsWith('automod_level_general_save_') ||
+                    customId.startsWith('automod_level_roles_save_') ||
+                    customId.startsWith('automod_no_leader_save_') ||
+                    customId.startsWith('automod_solo_tank_save_')
+                ) {
+                    const type = customId.includes('_level_')
+                        ? 'level'
+                        : customId.includes('_no_leader_')
+                            ? 'no_leader'
+                            : 'solo_tank';
+
+                    const typeLabel = type === 'level'
+                        ? 'Level'
+                        : type === 'no_leader'
+                            ? 'No Leader'
+                            : 'No Solo Tank';
+
+                    const modal = new ModalBuilder()
+                        .setCustomId(`automod_save_modal_${type}_${automodServerNum}`)
+                        .setTitle(`Save ${typeLabel} Config`)
+                        .addComponents(
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('name')
+                                    .setLabel('Preset Name')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setPlaceholder(`e.g. peakhours (saved as "peakhours - ${typeLabel}")`)
+                                    .setRequired(true)
+                                    .setMaxLength(80)
+                            )
+                        );
+
+                    await interaction.showModal(modal);
+                }
+
                 else if (customId.startsWith('automod_level_general_refresh_') || customId.startsWith('automod_level_roles_refresh_')) {
                     await interaction.deferUpdate();
                     const response = await automodCrcon.getAutoModLevelConfig();
@@ -1080,6 +1117,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const panel = schedulePanel.buildScheduleMapSelectPanel(srvNum);
                     await updatePanelMessage(interaction, panel);
                 }
+
+                // Automod attachments - show schedule selection
+                else if (customId.startsWith('schedule_automods_')) {
+                    await interaction.deferUpdate();
+                    const srvNum = parseInt(customId.split('_').pop());
+                    const panel = schedulePanel.buildScheduleAutomodSelectPanel(srvNum);
+                    await updatePanelMessage(interaction, panel);
+                }
             }
 
             // ========== SCHEDULE WHITELIST BUTTONS ==========
@@ -1263,6 +1308,90 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const crcon = crconServices[srvNum] || crconServices[1];
                 await interaction.deferUpdate();
                 const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon);
+                await updatePanelMessage(interaction, panel);
+            }
+
+            // Select schedule for automod attachments
+            else if (customId.startsWith('schedule_select_automods_')) {
+                const srvNum = parseInt(customId.split('_').pop(), 10);
+                const scheduleId = interaction.values[0];
+                await interaction.deferUpdate();
+                const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
+                await updatePanelMessage(interaction, panel);
+            }
+
+            // Attach level preset to schedule
+            else if (customId.startsWith('schedule_attach_level_')) {
+                const parts = customId.split('_');
+                const srvNum = parseInt(parts[3], 10);
+                const scheduleId = parts[4];
+                const presetId = interaction.values[0] === 'none' ? null : interaction.values[0];
+
+                const schedules = scheduleManager.getSchedules(srvNum);
+                const schedule = schedules.find(item => item.id === scheduleId);
+                if (!schedule) {
+                    return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                }
+
+                const attachments = {
+                    level: presetId,
+                    no_leader: schedule.automodProfiles?.no_leader || null,
+                    solo_tank: schedule.automodProfiles?.solo_tank || null
+                };
+                scheduleManager.updateSchedule(srvNum, scheduleId, { automodProfiles: attachments });
+
+                await interaction.deferUpdate();
+                const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
+                await updatePanelMessage(interaction, panel);
+            }
+
+            // Attach no leader preset to schedule
+            else if (customId.startsWith('schedule_attach_no_leader_')) {
+                const parts = customId.split('_');
+                const srvNum = parseInt(parts[4], 10);
+                const scheduleId = parts[5];
+                const presetId = interaction.values[0] === 'none' ? null : interaction.values[0];
+
+                const schedules = scheduleManager.getSchedules(srvNum);
+                const schedule = schedules.find(item => item.id === scheduleId);
+                if (!schedule) {
+                    return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                }
+
+                const attachments = {
+                    level: schedule.automodProfiles?.level || null,
+                    no_leader: presetId,
+                    solo_tank: schedule.automodProfiles?.solo_tank || null
+                };
+                scheduleManager.updateSchedule(srvNum, scheduleId, { automodProfiles: attachments });
+
+                await interaction.deferUpdate();
+                const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
+                await updatePanelMessage(interaction, panel);
+            }
+
+            // Attach solo tank preset to schedule
+            else if (customId.startsWith('schedule_attach_solo_tank_')) {
+                const parts = customId.split('_');
+                const srvNum = parseInt(parts[4], 10);
+                const scheduleId = parts[5];
+                const presetId = interaction.values[0] === 'none' ? null : interaction.values[0];
+
+                const schedules = scheduleManager.getSchedules(srvNum);
+                const schedule = schedules.find(item => item.id === scheduleId);
+                if (!schedule) {
+                    return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                }
+
+                const attachments = {
+                    level: schedule.automodProfiles?.level || null,
+                    no_leader: schedule.automodProfiles?.no_leader || null,
+                    solo_tank: presetId
+                };
+                scheduleManager.updateSchedule(srvNum, scheduleId, { automodProfiles: attachments });
+
+                await interaction.deferUpdate();
+                const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
                 await updatePanelMessage(interaction, panel);
             }
 
@@ -1807,6 +1936,44 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 await interaction.editReply({ content: `Updated role threshold **${roleKey}**.` });
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                return;
+            }
+
+            if (customId.startsWith('automod_save_modal_')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const match = customId.match(/^automod_save_modal_(level|no_leader|solo_tank)_(\d+)$/);
+                if (!match) {
+                    await interaction.editReply({ content: 'Invalid save preset modal ID.' });
+                    return;
+                }
+
+                const type = match[1];
+                const srvNum = parseInt(match[2], 10);
+                const name = interaction.fields.getTextInputValue('name');
+                const draftKey = getAutoModDraftKey(srvNum, interaction.user.id);
+
+                let draft = null;
+                if (type === 'level') {
+                    draft = autoModLevelDrafts.get(draftKey);
+                } else if (type === 'no_leader') {
+                    draft = autoModNoLeaderDrafts.get(draftKey);
+                } else if (type === 'solo_tank') {
+                    draft = autoModSoloTankDrafts.get(draftKey);
+                }
+
+                if (!draft) {
+                    await interaction.editReply({ content: 'No draft found to save. Open that automod panel and edit or refresh first.' });
+                    return;
+                }
+
+                const saved = automodPresetManager.createPreset(srvNum, type, name, draft);
+                if (!saved.success) {
+                    await interaction.editReply({ content: `Failed to save preset: ${saved.error}` });
+                    return;
+                }
+
+                await interaction.editReply({ content: `Saved preset **${saved.preset.displayName}**.` });
                 return;
             }
 

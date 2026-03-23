@@ -14,6 +14,7 @@ const {
     TextInputStyle
 } = require('discord.js');
 const scheduleManager = require('./scheduleManager');
+const automodPresetManager = require('./automodPresetManager');
 const logger = require('../utils/logger');
 
 class SchedulePanelService {
@@ -146,7 +147,16 @@ class SchedulePanelService {
                 .setStyle(ButtonStyle.Secondary)
         );
 
-        return { embeds: [embed], components: [row1, row2] };
+        const row3 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_automods_${serverNum}`)
+                .setLabel('Attach Automods')
+                .setEmoji('🤖')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(schedules.length === 0)
+        );
+
+        return { embeds: [embed], components: [row1, row2, row3] };
     }
 
     /**
@@ -285,6 +295,139 @@ class SchedulePanelService {
         );
 
         return { embeds: [embed], components: [selectRow, backRow] };
+    }
+
+    /**
+     * Build schedule selection for automod profile attachment
+     */
+    buildScheduleAutomodSelectPanel(serverNum) {
+        const schedules = scheduleManager.getSchedules(serverNum);
+
+        const embed = new EmbedBuilder()
+            .setTitle('🤖 Select Schedule for Automods')
+            .setDescription('Choose which schedule should have saved automod configs attached.')
+            .setColor(0x5865F2);
+
+        if (schedules.length === 0) {
+            embed.setDescription('No schedules configured. Create a schedule first.');
+            const backRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`schedule_back_${serverNum}`)
+                    .setLabel('Back')
+                    .setEmoji('⬅️')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+            return { embeds: [embed], components: [backRow] };
+        }
+
+        const options = schedules.map(schedule => ({
+            label: schedule.name.substring(0, 100),
+            description: `${schedule.startTime}-${schedule.endTime}`.substring(0, 100),
+            value: schedule.id
+        }));
+
+        const selectRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`schedule_select_automods_${serverNum}`)
+                .setPlaceholder('Select a schedule...')
+                .addOptions(options)
+        );
+
+        const backRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_back_${serverNum}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [selectRow, backRow] };
+    }
+
+    /**
+     * Build automod attachment panel for a specific schedule
+     */
+    buildScheduleAutomodAttachPanel(serverNum, scheduleId) {
+        const schedules = scheduleManager.getSchedules(serverNum);
+        const schedule = schedules.find(item => item.id === scheduleId);
+        if (!schedule) {
+            return { content: 'Schedule not found.' };
+        }
+
+        const attachments = schedule.automodProfiles || {
+            level: null,
+            no_leader: null,
+            solo_tank: null
+        };
+
+        const levelPresets = automodPresetManager.getPresets(serverNum, 'level');
+        const noLeaderPresets = automodPresetManager.getPresets(serverNum, 'no_leader');
+        const soloTankPresets = automodPresetManager.getPresets(serverNum, 'solo_tank');
+
+        const findName = (list, id) => list.find(item => item.id === id)?.displayName || 'None';
+
+        const embed = new EmbedBuilder()
+            .setTitle(`🤖 Attach Automods - ${schedule.name}`)
+            .setColor(0x5865F2)
+            .setDescription(
+                'Attach saved automod configs to this schedule.\n' +
+                'When the schedule becomes active, attached presets are applied automatically.\n\n' +
+                `**Level:** ${findName(levelPresets, attachments.level)}\n` +
+                `**No Leader:** ${findName(noLeaderPresets, attachments.no_leader)}\n` +
+                `**No Solo Tank:** ${findName(soloTankPresets, attachments.solo_tank)}`
+            );
+
+        const withNone = (items, type, attachedId) => {
+            const base = [
+                {
+                    label: `None (${type})`,
+                    description: 'Do not apply a preset for this automod',
+                    value: 'none'
+                }
+            ];
+            const mapped = items.slice(0, 24).map(item => ({
+                label: item.displayName.substring(0, 100),
+                description: (item.name || '').substring(0, 100) || 'Saved preset',
+                value: item.id,
+                default: item.id === attachedId
+            }));
+
+            if (attachedId === null || attachedId === undefined) {
+                base[0].default = true;
+            }
+            return [...base, ...mapped];
+        };
+
+        const levelRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`schedule_attach_level_${serverNum}_${scheduleId}`)
+                .setPlaceholder('Attach Level preset...')
+                .addOptions(withNone(levelPresets, 'Level', attachments.level))
+        );
+
+        const noLeaderRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`schedule_attach_no_leader_${serverNum}_${scheduleId}`)
+                .setPlaceholder('Attach No Leader preset...')
+                .addOptions(withNone(noLeaderPresets, 'No Leader', attachments.no_leader))
+        );
+
+        const soloTankRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`schedule_attach_solo_tank_${serverNum}_${scheduleId}`)
+                .setPlaceholder('Attach No Solo Tank preset...')
+                .addOptions(withNone(soloTankPresets, 'No Solo Tank', attachments.solo_tank))
+        );
+
+        const backRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_automods_${serverNum}`)
+                .setLabel('Back to Schedule Select')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [levelRow, noLeaderRow, soloTankRow, backRow] };
     }
 
     /**

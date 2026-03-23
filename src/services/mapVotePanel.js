@@ -775,6 +775,11 @@ class MapVotePanelService {
                 .setEmoji('✅')
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
+                .setCustomId(`automod_solo_tank_save_${serverNum}`)
+                .setLabel('Save Config')
+                .setEmoji('💾')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
                 .setCustomId(`automod_solo_tank_back_${serverNum}`)
                 .setLabel('Back')
                 .setEmoji('⬅️')
@@ -819,6 +824,11 @@ class MapVotePanelService {
                 .setLabel('Commit Changes')
                 .setEmoji('✅')
                 .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`automod_level_general_save_${serverNum}`)
+                .setLabel('Save Config')
+                .setEmoji('💾')
+                .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
                 .setCustomId(`automod_level_general_back_${serverNum}`)
                 .setLabel('Back')
@@ -868,6 +878,11 @@ class MapVotePanelService {
                 .setEmoji('✅')
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
+                .setCustomId(`automod_level_roles_save_${serverNum}`)
+                .setLabel('Save Config')
+                .setEmoji('💾')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
                 .setCustomId(`automod_level_roles_back_${serverNum}`)
                 .setLabel('Back')
                 .setEmoji('⬅️')
@@ -912,6 +927,11 @@ class MapVotePanelService {
                 .setLabel('Commit Changes')
                 .setEmoji('✅')
                 .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`automod_no_leader_save_${serverNum}`)
+                .setLabel('Save Config')
+                .setEmoji('💾')
+                .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
                 .setCustomId(`automod_no_leader_back_${serverNum}`)
                 .setLabel('Back')

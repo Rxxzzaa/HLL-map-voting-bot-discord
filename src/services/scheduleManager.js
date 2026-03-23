@@ -227,7 +227,12 @@ class ScheduleManager {
                 mapsPerVote: scheduleData.mapsPerVote ?? 6,
                 nightMapCount: scheduleData.nightMapCount ?? 1
             },
-            whitelist: scheduleData.whitelist || null // null = use CRCON whitelist
+            whitelist: scheduleData.whitelist || null, // null = use CRCON whitelist
+            automodProfiles: scheduleData.automodProfiles || {
+                level: null,
+                no_leader: null,
+                solo_tank: null
+            }
         };
 
         config.schedules.push(schedule);
@@ -258,6 +263,7 @@ class ScheduleManager {
             schedule.settings = { ...schedule.settings, ...updates.settings };
         }
         if (updates.whitelist !== undefined) schedule.whitelist = updates.whitelist;
+        if (updates.automodProfiles !== undefined) schedule.automodProfiles = updates.automodProfiles;
 
         schedule.updatedAt = new Date().toISOString();
         this.saveData();
@@ -378,6 +384,12 @@ class ScheduleManager {
             overrideExpiresAt: schedule.overrideExpiresAt,
             settings: schedule.settings,
             whitelist: schedule.whitelist
+            ,
+            automodProfiles: schedule.automodProfiles || {
+                level: null,
+                no_leader: null,
+                solo_tank: null
+            }
         };
     }
 
