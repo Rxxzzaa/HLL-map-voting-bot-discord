@@ -288,6 +288,58 @@ class SchedulePanelService {
     }
 
     /**
+     * Build schedule selection for exporting included maps
+     */
+    buildScheduleExportSelectPanel(serverNum) {
+        const schedules = scheduleManager.getSchedules(serverNum);
+
+        const embed = new EmbedBuilder()
+            .setTitle('📤 Export Schedule')
+            .setDescription('Select a schedule to export its included maps as a `.txt` file.')
+            .setColor(0x3498DB);
+
+        if (schedules.length === 0) {
+            embed.setDescription('No schedules configured. Create a schedule first.');
+            const backRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('mapvote_back')
+                    .setLabel('Back')
+                    .setEmoji('⬅️')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+            return { embeds: [embed], components: [backRow] };
+        }
+
+        const options = schedules.map(schedule => {
+            const whitelistInfo = schedule.whitelist === null
+                ? 'Using CRCON whitelist'
+                : `${schedule.whitelist.length} included maps`;
+            return {
+                label: schedule.name.substring(0, 100),
+                description: `${schedule.startTime}-${schedule.endTime} | ${whitelistInfo}`.substring(0, 100),
+                value: schedule.id
+            };
+        });
+
+        const selectRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`schedule_select_export_${serverNum}`)
+                .setPlaceholder('Select a schedule to export...')
+                .addOptions(options)
+        );
+
+        const backRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('mapvote_back')
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [selectRow, backRow] };
+    }
+
+    /**
      * Build override selection panel
      */
     buildOverridePanel(serverNum) {
@@ -848,6 +900,89 @@ class SchedulePanelService {
             const schedule = scheduleManager.createSchedule(serverNum, scheduleData);
             return { success: true, schedule, isNew: true };
         }
+    }
+
+    /**
+     * Build schedule map export content
+     */
+    async buildScheduleExport(serverNum, scheduleId, crconService, serverName = null) {
+        const schedules = scheduleManager.getSchedules(serverNum);
+        const schedule = schedules.find(s => s.id === scheduleId);
+
+        if (!schedule) {
+            return { success: false, error: 'Schedule not found' };
+        }
+
+        let allMaps = [];
+        try {
+            const mapsResponse = await crconService.getMaps();
+            allMaps = mapsResponse?.result || [];
+        } catch (e) {
+            logger.error('[SchedulePanel] Error fetching maps for export:', e);
+        }
+
+        const mapById = new Map(allMaps.map(map => [map.id, map]));
+
+        let includedMapIds = [];
+        let sourceMode = 'Custom schedule whitelist';
+
+        if (schedule.whitelist === null) {
+            sourceMode = 'CRCON whitelist (Use All Maps mode)';
+            try {
+                const whitelistResponse = await crconService.getVotemapWhitelist();
+                includedMapIds = whitelistResponse?.result || [];
+            } catch (e) {
+                logger.error('[SchedulePanel] Error fetching CRCON whitelist for export:', e);
+                includedMapIds = [];
+            }
+        } else {
+            includedMapIds = Array.isArray(schedule.whitelist) ? schedule.whitelist : [];
+        }
+
+        const uniqueMapIds = [...new Set(includedMapIds)];
+        const lines = uniqueMapIds.map((mapId, index) => {
+            const map = mapById.get(mapId);
+            const displayName = map?.pretty_name || map?.name || mapId;
+            const mode = map?.game_mode || 'unknown';
+            const environment = map?.environment || 'unknown';
+            return `${index + 1}. ${displayName} [${mapId}] (${mode}, ${environment})`;
+        });
+
+        const exportedAt = new Date().toISOString();
+        const safeName = (schedule.name || 'schedule')
+            .toLowerCase()
+            .replace(/[^a-z0-9-_]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .substring(0, 40) || 'schedule';
+        const filename = `schedule-export-s${serverNum}-${safeName}.txt`;
+
+        const contentLines = [
+            'Schedule Export',
+            '====================',
+            `Server: ${serverName || `Server ${serverNum}`}`,
+            `Schedule: ${schedule.name}`,
+            `Schedule ID: ${schedule.id}`,
+            `Time Range: ${schedule.startTime} - ${schedule.endTime}`,
+            `Days: ${(schedule.days || []).join(', ') || 'all'}`,
+            `Source: ${sourceMode}`,
+            `Exported At (UTC): ${exportedAt}`,
+            '',
+            `Included Maps (${uniqueMapIds.length}):`,
+            ...(
+                lines.length > 0
+                    ? lines
+                    : ['(No maps included)']
+            ),
+            ''
+        ];
+
+        return {
+            success: true,
+            filename,
+            content: contentLines.join('\n'),
+            mapCount: uniqueMapIds.length,
+            scheduleName: schedule.name
+        };
     }
 }
 

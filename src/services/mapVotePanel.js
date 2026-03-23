@@ -231,6 +231,11 @@ class MapVotePanelService {
                     .setEmoji('📜')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
+                    .setCustomId('mapvote_export_schedule')
+                    .setLabel('Export Schedule')
+                    .setEmoji('📤')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
                     .setCustomId('mapvote_refresh')
                     .setLabel('Refresh')
                     .setEmoji('🔄')
