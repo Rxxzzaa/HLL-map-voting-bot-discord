@@ -7,6 +7,28 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelect
 const logger = require('../utils/logger');
 const scheduleManager = require('./scheduleManager');
 
+const SOLO_TANK_FIELD_DEFS = [
+    { key: 'dry_run', label: 'Dry Run', type: 'boolean' },
+    { key: 'enabled', label: 'Enabled', type: 'boolean' },
+    { key: 'kick_message', label: 'Kick Message', type: 'string', multiline: true },
+    { key: 'punish_message', label: 'Punish Message', type: 'string', multiline: true },
+    { key: 'number_of_notes', label: 'Number Of Notes', type: 'integer' },
+    { key: 'warning_message', label: 'Warning Message', type: 'string', multiline: true },
+    { key: 'whitelist_flags', label: 'Whitelist Flags', type: 'string_array' },
+    { key: 'number_of_warnings', label: 'Number Of Warnings', type: 'integer' },
+    { key: 'discord_webhook_url', label: 'Discord Webhook Url', type: 'nullable_string' },
+    { key: 'immune_player_level', label: 'Immune Player Level', type: 'integer' },
+    { key: 'kick_after_max_punish', label: 'Kick After Max Punish', type: 'boolean' },
+    { key: 'number_of_punishments', label: 'Number Of Punishments', type: 'integer' },
+    { key: 'notes_interval_seconds', label: 'Notes Interval Seconds', type: 'integer' },
+    { key: 'punish_interval_seconds', label: 'Punish Interval Seconds', type: 'integer' },
+    { key: 'warning_interval_seconds', label: 'Warning Interval Seconds', type: 'integer' },
+    { key: 'kick_grace_period_seconds', label: 'Kick Grace Period Seconds', type: 'integer' },
+    { key: 'min_server_players_for_kick', label: 'Min Server Players For Kick', type: 'integer' },
+    { key: 'min_server_players_for_punish', label: 'Min Server Players For Punish', type: 'integer' },
+    { key: 'dont_do_anything_below_this_number_of_players', label: 'Minimum Players For Any Action', type: 'integer' }
+];
+
 // Map categories for organization
 const MAP_CATEGORIES = {
     western_front: {
@@ -229,6 +251,11 @@ class MapVotePanelService {
                     .setCustomId('mapvote_history')
                     .setLabel('History')
                     .setEmoji('📜')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('mapvote_automods')
+                    .setLabel('Automods')
+                    .setEmoji('🤖')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('mapvote_export_schedule')
@@ -595,6 +622,118 @@ class MapVotePanelService {
         );
 
         return { embeds: [embed], components: [row1, row2] };
+    }
+
+    getSoloTankFieldDefinitions() {
+        return SOLO_TANK_FIELD_DEFS;
+    }
+
+    buildAutomodsPanel(serverNum, serverName = 'Server') {
+        const embed = new EmbedBuilder()
+            .setTitle(`🤖 Automods - ${serverName}`)
+            .setColor(0x5865F2)
+            .setDescription(
+                'Manage CRCON automod modules.\n\n' +
+                'Choose a module below:\n' +
+                '• Level\n' +
+                '• No Leader\n' +
+                '• No Solo Tank'
+            )
+            .setFooter({ text: 'Automods settings panel' });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`automod_level_${serverNum}`)
+                .setLabel('Level')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`automod_no_leader_${serverNum}`)
+                .setLabel('No Leader')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`automod_solo_tank_${serverNum}`)
+                .setLabel('No Solo Tank')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId(`automod_back_${serverNum}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [row] };
+    }
+
+    buildAutoModSoloTankPanel(serverNum, serverName = 'Server', draftConfig = {}, source = 'server') {
+        const embed = new EmbedBuilder()
+            .setTitle(`🚫 No Solo Tank Config - ${serverName}`)
+            .setColor(0xE67E22)
+            .setDescription(
+                `Source: **${source}**\n` +
+                'Select a field from the dropdown to edit it, then click **Commit Changes** to apply to CRCON.\n\n' +
+                this.buildSoloTankConfigTable(draftConfig)
+            )
+            .setFooter({ text: 'Edits are local until Commit Changes is pressed' });
+
+        const selectOptions = SOLO_TANK_FIELD_DEFS.map(field => ({
+            label: field.label.substring(0, 100),
+            value: field.key,
+            description: this.formatSoloTankValueForSelect(draftConfig[field.key], field.type)
+        }));
+
+        const selectRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`automod_solo_tank_field_${serverNum}`)
+                .setPlaceholder('Select a field to edit...')
+                .addOptions(selectOptions)
+        );
+
+        const actionRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`automod_solo_tank_refresh_${serverNum}`)
+                .setLabel('Refresh')
+                .setEmoji('🔄')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`automod_solo_tank_commit_${serverNum}`)
+                .setLabel('Commit Changes')
+                .setEmoji('✅')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`automod_solo_tank_back_${serverNum}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [selectRow, actionRow] };
+    }
+
+    buildSoloTankConfigTable(config) {
+        const lines = SOLO_TANK_FIELD_DEFS.map(field => {
+            const value = this.formatSoloTankValueForTable(config[field.key], field.type);
+            return `${field.key}: ${value}`;
+        });
+        return `\`\`\`\n${lines.join('\n')}\n\`\`\``;
+    }
+
+    formatSoloTankValueForSelect(value, type) {
+        const raw = this.formatSoloTankValueForTable(value, type);
+        return raw.length > 95 ? `${raw.slice(0, 92)}...` : raw;
+    }
+
+    formatSoloTankValueForTable(value, type) {
+        if (value === null || value === undefined) {
+            return 'null';
+        }
+        if (type === 'string_array') {
+            return Array.isArray(value) ? `[${value.join(', ')}]` : '[]';
+        }
+        let text = String(value).replace(/\n/g, '\\n');
+        if (text.length > 120) {
+            text = `${text.slice(0, 117)}...`;
+        }
+        return text;
     }
 }
 

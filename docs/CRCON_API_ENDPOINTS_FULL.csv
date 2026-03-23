@@ -1,0 +1,304 @@
+endpoint,allowed_http_methods,argument_count,arguments,return_type,auto_settings_capable,permissions_required,has_doc_string
+add_admin,POST,3,player_id|role|description,<class 'bool'>,true,api.can_add_admin_roles,false
+add_blacklist_record,POST,5,player_id|blacklist_id|reason|expires_at|admin_name,<class 'rcon.types.BlacklistType'>,true,api.can_add_blacklist_records,true
+add_map_to_rotation,POST,2,map_name|after_map_name,None,true,api.can_add_map_to_rotation,false
+add_map_to_votemap_whitelist,POST,1,map_name,,true,api.can_add_map_to_whitelist,false
+add_maps_to_rotation,POST,1,map_names,,true,api.can_add_maps_to_rotation,true
+add_maps_to_votemap_whitelist,POST,1,map_names,,true,api.can_add_maps_to_whitelist,false
+add_message_template,POST,4,title|content|category|by,<class 'int'>,true,api.can_add_message_templates,true
+add_vip,POST,3,player_id|description|expiration,<class 'bool'>,true,api.can_add_vip,true
+ban_profanities,POST,1,profanities,<class 'bool'>,true,api.can_ban_profanities,false
+clear_cache,POST,0,,<class 'bool'>,true,api.can_clear_crcon_cache,true
+create_blacklist,POST,3,name|sync|servers,,true,api.can_create_blacklists,true
+delete_blacklist,POST,1,blacklist_id,,true,api.can_delete_blacklists,true
+delete_blacklist_record,POST,1,record_id,<class 'bool'>,true,api.can_delete_blacklist_records,true
+delete_message_template,POST,1,id,<class 'bool'>,true,api.can_delete_message_templates,true
+describe_admin_pings_discord_webhooks_config,GET,0,,,false,,false
+describe_audit_discord_webhooks_config,GET,0,,,false,,false
+describe_auto_broadcasts_config,GET,0,,,false,,false
+describe_auto_mod_level_config,GET,0,,,false,,false
+describe_auto_mod_no_leader_config,GET,0,,,false,,false
+describe_auto_mod_seeding_config,GET,0,,,false,,false
+describe_auto_mod_solo_tank_config,GET,0,,,false,,false
+describe_camera_discord_webhooks_config,GET,0,,,false,,false
+describe_camera_notification_config,GET,0,,,false,,false
+describe_chat_commands_config,GET,0,,,false,,false
+describe_chat_discord_webhooks_config,GET,0,,,false,,false
+describe_expired_vip_config,GET,0,,,false,,false
+describe_kills_discord_webhooks_config,GET,0,,,false,,false
+describe_log_line_webhook_config,GET,0,,,false,,false
+describe_log_stream_config,GET,0,,,false,,false
+describe_name_kick_config,GET,0,,,false,,false
+describe_rcon_chat_commands_config,GET,0,,,false,,false
+describe_rcon_connection_settings_config,GET,0,,,false,,false
+describe_rcon_server_settings_config,GET,0,,,false,,false
+describe_real_vip_config,GET,0,,,false,,false
+describe_scoreboard_config,GET,0,,,false,,false
+describe_seed_vip_config,GET,0,,,false,,false
+describe_server_name_change_config,GET,0,,,false,,false
+describe_standard_broadcast_messages,GET,0,,,false,,false
+describe_standard_punishments_messages,GET,0,,,false,,false
+describe_standard_welcome_messages,GET,0,,,false,,false
+describe_steam_config,GET,0,,,false,,false
+describe_tk_ban_on_connect_config,GET,0,,,false,,false
+describe_vac_game_bans_config,GET,0,,,false,,false
+describe_votekick_autotoggle_config,GET,0,,,false,,false
+describe_votemap_config,GET,0,,,false,,false
+describe_watch_killrate_config,GET,0,,,false,,false
+describe_watchlist_discord_webhooks_config,GET,0,,,false,,false
+disband_squad,POST,3,team_index|squad_index|reason,None,true,api.can_disband_squad,false
+disband_squad_by_name,POST,3,team_name|squad_name|reason,,true,api.can_disband_squad,false
+do_service,POST,0,,,false,api.can_toggle_services,false
+download_vips,GET,0,,,false,api.can_download_vip_list,false
+edit_blacklist,POST,4,blacklist_id|name|sync_method|servers,,true,api.can_change_blacklists,true
+edit_blacklist_record,POST,4,record_id|blacklist_id|reason|expires_at,<class 'bool'>,true,api.can_change_blacklist_records,true
+edit_message_template,POST,5,id|title|content|category|by,None,true,api.can_edit_message_templates,true
+edit_player_account,POST,6,player_id|name|discord_id|is_member|country|lang,,true,api.can_edit_player_account,true
+edit_player_soldier,POST,6,player_id|name|level|platform|clan_tag|eos_id,,true,api.can_edit_player_soldier,true
+flag_player,POST,4,player_id|flag|player_name|comment,<class 'rcon.types.PlayerFlagType'>,true,api.can_flag_player,true
+get_admin_groups,GET,0,,list[str],true,api.can_view_admin_groups,false
+get_admin_ids,GET,0,,list[rcon.types.AdminType],true,api.can_view_admin_ids,false
+get_admin_pings_discord_webhooks_config,GET,0,,<class 'rcon.user_config.webhooks.AdminPingWebhooksUserConfig'>,true,api.can_view_admin_pings_discord_webhooks_config,false
+get_all_discord_webhooks_config,GET,0,,,false,api.can_view_admin_pings_discord_webhooks_config|api.can_view_audit_discord_webhooks_config|api.can_view_camera_discord_webhooks_config|api.can_view_chat_discord_webhooks_config|api.can_view_kills_discord_webhooks_config|api.can_view_watchlist_discord_webhooks_config,false
+get_all_message_templates,GET,0,,<class 'rcon.types.AllMessageTemplateTypes'>,true,api.can_view_message_templates,true
+get_all_standard_message_config,GET,0,,,false,api.can_view_standard_broadcast_messages|api.can_view_standard_punishment_messages|api.can_view_standard_welcome_messages,false
+get_all_webhook_queues,GET,0,,list[str],true,api.can_view_webhook_queues,false
+get_audit_discord_webhooks_config,GET,0,,<class 'rcon.user_config.webhooks.AuditWebhooksUserConfig'>,true,api.can_view_audit_discord_webhooks_config,false
+get_audit_logs,GET,0,,,false,api.can_view_audit_logs,false
+get_audit_logs_autocomplete,GET,0,,,false,api.can_view_audit_logs_autocomplete,false
+get_auto_broadcasts_config,GET,0,,<class 'rcon.user_config.auto_broadcast.AutoBroadcastUserConfig'>,true,api.can_view_auto_broadcast_config,false
+get_auto_mod_level_config,GET,0,,<class 'rcon.user_config.auto_mod_level.AutoModLevelUserConfig'>,true,api.can_view_auto_mod_level_config,false
+get_auto_mod_no_leader_config,GET,0,,<class 'rcon.user_config.auto_mod_no_leader.AutoModNoLeaderUserConfig'>,true,api.can_view_auto_mod_no_leader_config,false
+get_auto_mod_seeding_config,GET,0,,<class 'rcon.user_config.auto_mod_seeding.AutoModSeedingUserConfig'>,true,api.can_view_auto_mod_seeding_config,false
+get_auto_mod_solo_tank_config,GET,0,,<class 'rcon.user_config.auto_mod_solo_tank.AutoModNoSoloTankUserConfig'>,true,api.can_view_auto_mod_solo_tank_config,false
+get_auto_settings,GET,0,,,false,api.can_view_auto_settings,false
+get_autobalance_enabled,GET,0,,<class 'bool'>,true,api.can_view_autobalance_enabled,false
+get_autobalance_threshold,GET,0,,<class 'int'>,true,api.can_view_autobalance_threshold,false
+get_ban,GET,1,player_id,list[rcon.types.GameServerBanType],true,api.can_view_player_bans,true
+get_bans,GET,0,,list[rcon.types.GameServerBanType],true,api.can_view_perma_bans|api.can_view_temp_bans,false
+get_blacklist,GET,1,blacklist_id,<class 'rcon.types.BlacklistWithRecordsType'>,true,api.can_view_blacklists,true
+get_blacklist_records,GET,6,player_id|reason|blacklist_id|exclude_expired|page_size|page,,true,api.can_view_blacklists,false
+get_blacklists,GET,0,,list[rcon.types.BlacklistType],true,api.can_view_blacklists,true
+get_broadcast_message,GET,0,,str | bytes | None,true,api.can_view_broadcast_message,true
+get_camera_discord_webhooks_config,GET,0,,<class 'rcon.user_config.webhooks.CameraWebhooksUserConfig'>,true,api.can_view_camera_discord_webhooks_config,false
+get_camera_notification_config,GET,0,,<class 'rcon.user_config.camera_notification.CameraNotificationUserConfig'>,true,api.can_view_camera_config,false
+get_chat_commands_config,GET,0,,,true,api.can_view_chat_commands_config,false
+get_chat_discord_webhooks_config,GET,0,,<class 'rcon.user_config.webhooks.ChatWebhooksUserConfig'>,true,api.can_view_chat_discord_webhooks_config,false
+get_connection_info,GET,0,,,false,api.can_view_connection_info,false
+get_date_scoreboard,GET,2,start|end,,true,api.can_view_date_scoreboard,false
+get_detailed_player_info,GET,2,player_id|player,<class 'rcon.types.GetDetailedPlayer'>,true,api.can_view_detailed_player_info,false
+get_detailed_players,GET,0,,<class 'rcon.types.GetDetailedPlayers'>,true,api.can_view_detailed_players,false
+get_expired_vip_config,GET,0,,<class 'rcon.user_config.expired_vips.ExpiredVipsUserConfig'>,true,api.get_expired_vip_config,false
+get_gamestate,GET,0,,<class 'rcon.types.GameStateType'>,true,api.can_view_gamestate,true
+get_historical_logs,GET|POST,10,player_name|player_id|action|limit|from_|till|time_sort|exact_player_match|exact_action|server_filter,,true,api.can_view_historical_logs,false
+get_historical_logs_csv,GET|POST,0,,,false,api.can_view_historical_logs,false
+get_idle_autokick_time,GET,0,,<class 'int'>,true,api.can_view_idle_autokick_time,false
+get_ingame_mods,GET,0,,list[rcon.types.AdminUserType],true,api.can_view_ingame_admins,false
+get_kills_discord_webhooks_config,GET,0,,,true,api.can_view_kills_discord_webhooks_config,false
+get_live_game_stats,GET,0,,,false,,true
+get_live_scoreboard,GET,0,,,false,,true
+get_log_line_webhook_config,GET,0,,<class 'rcon.user_config.log_line_webhooks.LogLineWebhookUserConfig'>,true,api.get_log_line_webhook_config,false
+get_log_stream_config,GET,0,,,true,api.can_view_log_stream_config,false
+get_logs,GET,3,since_min_ago|filter_|by,list[str],true,api.can_view_game_logs,true
+get_map,GET,0,,<class 'rcon.maps.Layer'>,true,api.can_view_current_map,false
+get_map_history,GET,0,,,false,,false
+get_map_rotation,GET,0,,<class 'rcon.types.GetMapRotation'>,true,api.can_view_map_rotation,false
+get_map_scoreboard,GET,0,,,false,,false
+get_map_sequence,GET,0,,<class 'rcon.types.GetMapSequence'>,true,api.can_view_current_map_sequence,false
+get_map_shuffle_enabled,GET,0,,<class 'bool'>,true,api.can_view_map_shuffle_enabled,false
+get_maps,GET,0,,list[rcon.maps.Layer],true,api.can_view_all_maps,false
+get_max_ping_autokick,GET,0,,<class 'int'>,true,api.can_view_max_ping_autokick,false
+get_message_template,GET,1,id,rcon.types.MessageTemplateType | None,true,api.can_view_message_templates,true
+get_message_template_categories,GET,0,,list[rcon.types.MessageTemplateCategory],true,api.can_view_message_templates,false
+get_message_templates,GET,1,category,list[rcon.types.MessageTemplateType],true,api.can_view_message_templates,true
+get_name,GET,0,,<class 'str'>,true,api.can_view_server_name,false
+get_name_kick_config,GET,0,,<class 'rcon.user_config.name_kicks.NameKickUserConfig'>,true,api.can_view_name_kick_config,false
+get_next_map,GET,0,,<class 'rcon.maps.Layer'>,true,api.can_view_next_map,true
+get_objective_rows,GET,0,,typing.List[typing.List[str]],true,api.can_view_current_map,false
+get_online_mods,GET,0,,list[rcon.types.AdminUserType],true,api.can_view_online_admins,false
+get_own_user_permissions,GET,0,,,false,,false
+get_perma_bans,GET,0,,list[rcon.types.GameServerBanType],true,api.can_view_perma_bans,false
+get_player_comments,GET,1,player_id,list[rcon.types.PlayerCommentType],true,api.can_view_player_comments,false
+get_player_ids,GET,1,as_dict,"dict[str, str] | list[tuple[str, str]]",true,api.can_view_playerids,false
+get_player_info,GET,2,player_id|can_fail,,true,api.can_view_player_info,false
+get_player_messages,GET,1,player_id,,true,api.can_view_player_messages,false
+get_player_profile,GET,2,player_id|num_sessions,rcon.types.PlayerProfileTypeEnriched | None,true,api.can_view_player_profile,false
+get_players,GET,0,,list[rcon.types.GetPlayersType],true,api.can_view_get_players,false
+get_players_history,GET|POST,12,page|page_size|last_seen_from|last_seen_till|player_id|player_name|blacklisted|is_watched|exact_name_match|ignore_accent|flags|country,,true,api.can_view_player_history,false
+get_previous_map,GET,0,,,false,,false
+get_profanities,GET,0,,list[str],true,api.can_view_profanities,false
+get_public_info,GET,0,,,false,,false
+get_queue_length,GET,0,,<class 'int'>,true,api.can_view_queue_length,false
+get_rcon_chat_commands_config,GET,0,,,true,api.can_view_rcon_chat_commands_config,false
+get_rcon_connection_settings_config,GET,0,,<class 'rcon.user_config.rcon_connection_settings.RconConnectionSettingsUserConfig'>,true,api.can_view_rcon_connection_settings_config,false
+get_rcon_server_settings_config,GET,0,,<class 'rcon.user_config.rcon_server_settings.RconServerSettingsUserConfig'>,true,api.can_view_rcon_server_settings_config,false
+get_real_vip_config,GET,0,,<class 'rcon.user_config.real_vip.RealVipUserConfig'>,true,api.can_view_real_vip_config,false
+get_recent_logs,GET|POST,7,filter_player|filter_action|inclusive_filter|start|end|exact_player_match|exact_action,<class 'rcon.types.ParsedLogsType'>,true,api.can_view_recent_logs,false
+get_round_time_remaining,GET,0,,<class 'float'>,true,api.can_view_round_time_remaining,true
+get_scoreboard_config,GET,0,,<class 'rcon.user_config.scoreboard.ScoreboardUserConfig'>,true,api.can_view_scorebot_config,false
+get_scoreboard_maps,GET,0,,,false,,false
+get_scorebot_config,GET,0,,<class 'rcon.user_config.legacy_scorebot.ScorebotUserConfig'>,true,api.can_view_scorebot_config,false
+get_seed_vip_config,GET,0,,<class 'rcon.user_config.seed_vip.SeedVIPUserConfig'>,true,api.can_view_seed_vip_config,false
+get_server_list,GET,0,,,false,api.can_view_other_crcon_servers,false
+get_server_name_change_config,GET,0,,<class 'rcon.user_config.gtx_server_name.GtxServerNameChangeUserConfig'>,true,api.get_server_name_change_config,false
+get_server_settings,GET,0,,,true,api.can_view_autobalance_enabled|api.can_view_autobalance_threshold|api.can_view_idle_autokick_time|api.can_view_max_ping_autokick|api.can_view_queue_length|api.can_view_team_switch_cooldown|api.can_view_vip_slots|api.can_view_votekick_enabled|api.can_view_votekick_threshold,false
+get_services,GET,0,,,false,api.can_view_available_services,false
+get_slots,GET,0,,<class 'rcon.types.SlotsType'>,true,api.can_view_player_slots,true
+get_standard_broadcast_messages,GET,0,,<class 'rcon.user_config.standard_messages.StandardBroadcastMessagesUserConfig'>,true,api.can_view_standard_broadcast_messages,false
+get_standard_punishments_messages,GET,0,,<class 'rcon.user_config.standard_messages.StandardPunishmentMessagesUserConfig'>,true,api.can_view_standard_punishment_messages,false
+get_standard_welcome_messages,GET,0,,<class 'rcon.user_config.standard_messages.StandardWelcomeMessagesUserConfig'>,true,api.can_view_standard_welcome_messages,false
+get_status,GET,0,,<class 'rcon.types.StatusType'>,true,api.can_view_get_status,false
+get_steam_config,GET,0,,<class 'rcon.user_config.steam.SteamUserConfig'>,true,api.can_view_steam_config,false
+get_structured_logs,GET,3,since_min_ago|filter_action|filter_player,<class 'rcon.types.ParsedLogsType'>,true,api.can_view_structured_logs,false
+get_system_usage,GET,0,,,false,,false
+get_team_objective_scores,GET,0,,"tuple[int, int]",true,api.can_view_team_objective_scores,true
+get_team_switch_cooldown,GET,0,,<class 'int'>,true,api.can_view_team_switch_cooldown,false
+get_team_view,GET,0,,,true,api.can_view_team_view,false
+get_temp_bans,GET,0,,list[rcon.types.GameServerBanType],true,api.can_view_temp_bans,false
+get_tk_ban_on_connect_config,GET,0,,<class 'rcon.user_config.ban_tk_on_connect.BanTeamKillOnConnectUserConfig'>,true,api.can_view_tk_ban_on_connect_config,false
+get_vac_game_bans_config,GET,0,,<class 'rcon.user_config.vac_game_bans.VacGameBansUserConfig'>,true,api.can_view_vac_game_bans_config,false
+get_version,GET,0,,,false,,false
+get_vip_ids,GET,0,,list[rcon.types.VipIdType],true,api.can_view_vip_ids,false
+get_vip_slots_num,GET,0,,<class 'int'>,true,api.can_view_vip_slots,false
+get_vips_count,GET,0,,<class 'int'>,true,api.can_view_vip_count,false
+get_votekick_autotoggle_config,GET,0,,<class 'rcon.user_config.auto_kick.AutoVoteKickUserConfig'>,true,api.can_view_votekick_autotoggle_config,false
+get_votekick_enabled,GET,0,,<class 'bool'>,true,api.can_view_votekick_enabled,false
+get_votekick_thresholds,GET,0,,list[list[int]],true,api.can_view_votekick_threshold,false
+get_votemap_config,GET,0,,<class 'rcon.user_config.vote_map.VoteMapUserConfig'>,true,api.can_view_votemap_config,false
+get_votemap_status,GET,0,,list[rcon.types.VoteMapStatusType],true,api.can_view_votemap_status,false
+get_votemap_whitelist,GET,0,,list[str],true,api.can_view_map_whitelist,false
+get_watch_killrate_config,GET,0,,,true,api.can_view_watch_killrate_config,false
+get_watchlist_discord_webhooks_config,GET,0,,<class 'rcon.user_config.webhooks.WatchlistWebhooksUserConfig'>,true,api.can_view_watchlist_discord_webhooks_config,false
+get_webhook_queue_overview,GET,1,queue_id,rcon.webhook_service.QueueStatus | None,true,api.can_view_webhook_queues,false
+get_webhook_service_summary,GET,0,,,true,api.can_view_webhook_queues,true
+get_welcome_message,GET,0,,,true,api.can_view_welcome_message,false
+is_logged_in,GET,0,,,false,,false
+kick,POST,4,player_id|reason|by|player_name,<class 'bool'>,true,api.can_kick_players,false
+login,POST,0,,,false,,false
+logout,GET|POST,0,,,false,,false
+message_all_players,POST,1,message,<class 'bool'>,true,api.can_message_players,false
+message_player,POST,5,player_id|message|by|save_message|player_name,<class 'bool'>,true,api.can_message_players,false
+perma_ban,POST,4,player_id|reason|by|player_name,<class 'bool'>,true,api.can_perma_ban_players,false
+post_player_comment,POST,3,player_id|comment|by,,true,api.can_add_player_comments,false
+punish,POST,4,player_id|reason|by|player_name,<class 'bool'>,true,api.can_punish_players,false
+reconnect_gameserver,POST,0,,,false,api.can_restart_webserver,true
+remove_admin,POST,1,player_id,<class 'bool'>,true,api.can_remove_admin_roles,false
+remove_all_vips,POST,0,,<class 'bool'>,true,api.can_remove_all_vips,false
+remove_map_from_rotation,POST,1,map_name,,true,api.can_remove_map_from_rotation,false
+remove_map_from_votemap_whitelist,POST,1,map_name,,true,api.can_remove_map_from_whitelist,false
+remove_maps_from_rotation,POST,1,map_names,,true,api.can_remove_maps_from_rotation,false
+remove_maps_from_votemap_whitelist,POST,1,map_names,,true,api.can_remove_maps_from_whitelist,false
+remove_match_timer,POST,1,game_mode,,true,api.can_remove_match_timer,false
+remove_perma_ban,POST,1,player_id,<class 'bool'>,true,api.can_remove_perma_bans,true
+remove_player_from_squad,POST,2,player_id|reason,None,true,api.can_remove_player_from_squad,false
+remove_temp_ban,POST,1,player_id,<class 'bool'>,true,api.can_remove_temp_bans,true
+remove_vip,POST,1,player_id,<class 'bool'>,true,api.can_remove_vip,true
+remove_warmup_timer,POST,1,game_mode,,true,api.can_remove_warmup_timer,false
+reset_all_webhook_queues_for_server_number,POST,1,server_number,<class 'int'>,true,api.can_change_webhook_queues,true
+reset_map_votemap_whitelist,POST,0,,,true,api.can_reset_map_whitelist,false
+reset_votekick_thresholds,POST,0,,<class 'bool'>,true,api.can_reset_votekick_threshold,false
+reset_votemap_state,POST,0,,list[rcon.types.VoteMapStatusType],true,api.can_reset_votemap_state,false
+reset_webhook_message_type,POST,1,message_type,<class 'int'>,true,api.can_change_webhook_queues,true
+reset_webhook_queue,POST,1,queue_id,<class 'bool'>,true,api.can_change_webhook_queues,true
+reset_webhook_queue_type,POST,1,webhook_type,<class 'int'>,true,api.can_change_webhook_queues,true
+reset_webhook_queues,POST,0,,<class 'int'>,true,api.can_change_webhook_queues,true
+run_raw_command,GET|POST,0,,,false,api.can_run_raw_commands,false
+set_admin_pings_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_admin_pings_discord_webhooks_config,false
+set_audit_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_audit_discord_webhooks_config,false
+set_auto_broadcasts_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_broadcast_config,false
+set_auto_mod_level_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_mod_level_config,false
+set_auto_mod_no_leader_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_mod_no_leader_config,false
+set_auto_mod_seeding_config,POST,4,by|user_config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_mod_seeding_config,false
+set_auto_mod_solo_tank_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_mod_solo_tank_config,false
+set_auto_settings,POST,0,,,false,api.can_change_auto_settings,false
+set_autobalance_enabled,POST,1,value,<class 'bool'>,true,api.can_change_autobalance_enabled,false
+set_autobalance_threshold,POST,1,max_diff,<class 'bool'>,true,api.can_change_autobalance_threshold,false
+set_broadcast,POST,1,message,<class 'str'>,true,api.can_change_broadcast_message,true
+set_camera_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_camera_discord_webhooks_config,false
+set_camera_notification_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_camera_config,false
+set_chat_commands_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_chat_commands_config,false
+set_chat_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_chat_discord_webhooks_config,false
+set_dynamic_weather_enabled,POST,2,map_name|enabled,,true,api.can_set_dynamic_weather_enabled,false
+set_expired_vip_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_expired_vip_config,false
+set_game_layout,POST,2,objectives|random_constraints,,true,api.can_change_game_layout,false
+set_idle_autokick_time,POST,1,minutes,<class 'bool'>,true,api.can_change_idle_autokick_time,false
+set_kills_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_kills_discord_webhooks_config,false
+set_log_line_webhook_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_log_line_discord_webhook_config,false
+set_log_stream_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_log_stream_config,false
+set_map,POST,1,map_name,None,true,api.can_change_current_map,false
+set_map_rotation,POST,1,map_names,,true,api.can_add_map_to_rotation|api.can_remove_map_from_rotation|api.can_view_map_rotation,false
+set_map_shuffle_enabled,POST,1,enabled,None,true,api.can_change_map_shuffle_enabled,false
+set_match_timer,POST,2,game_mode|length,,true,api.can_set_match_timer,false
+set_max_ping_autokick,POST,1,max_ms,<class 'bool'>,true,api.can_change_max_ping_autokick,false
+set_name_kick_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_name_kick_config,false
+set_profanities,POST,1,profanities,list[str],true,api.can_ban_profanities|api.can_unban_profanities|api.can_view_profanities,false
+set_queue_length,POST,1,value,<class 'bool'>,true,api.can_change_queue_length,false
+set_rcon_chat_commands_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_rcon_chat_commands_config,false
+set_rcon_connection_settings_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_rcon_connection_settings_config,false
+set_rcon_server_settings_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_rcon_server_settings_config,false
+set_real_vip_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_real_vip_config,false
+set_scoreboard_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_scorebot_config,false
+set_seed_vip_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_seed_vip_config,false
+set_server_name,POST,1,name,,true,api.can_change_server_name,false
+set_server_name_change_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_server_name_change_config,false
+set_standard_broadcast_messages,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_standard_broadcast_messages,false
+set_standard_punishments_messages,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_standard_punishment_messages,false
+set_standard_welcome_messages,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_standard_welcome_messages,false
+set_steam_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_steam_config,false
+set_team_switch_cooldown,POST,1,minutes,<class 'bool'>,true,api.can_change_team_switch_cooldown,false
+set_tk_ban_on_connect_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_tk_ban_on_connect_config,false
+set_vac_game_bans_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_vac_game_bans_config,false
+set_vip_slots_num,POST,1,value,<class 'bool'>,true,api.can_change_vip_slots,false
+set_votekick_autotoggle_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_votekick_autotoggle_config,false
+set_votekick_enabled,POST,1,value,<class 'bool'>,true,api.can_change_votekick_enabled,false
+set_votekick_thresholds,POST,1,threshold_pairs,,true,api.can_change_votekick_threshold,false
+set_votemap_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_votemap_config,false
+set_votemap_whitelist,POST,1,map_names,,true,api.can_set_map_whitelist,false
+set_warmup_timer,POST,2,game_mode|length,,true,api.can_set_warmup_timer,false
+set_watch_killrate_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_watch_killrate_config,false
+set_watchlist_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_watchlist_discord_webhooks_config,false
+set_welcome_message,POST,1,message,<class 'str'>,true,api.can_change_welcome_message,true
+switch_player_now,POST,1,player_id,<class 'bool'>,true,api.can_switch_players_immediately,false
+switch_player_on_death,POST,2,player_id|by,<class 'bool'>,true,api.can_switch_players_on_death,false
+temp_ban,POST,5,player_id|duration_hours|reason|by|player_name,<class 'bool'>,true,api.can_temp_ban_players,false
+unban,POST,1,player_id,<class 'bool'>,true,api.can_remove_perma_bans|api.can_remove_temp_bans,true
+unban_profanities,POST,1,profanities,<class 'bool'>,true,api.can_unban_profanities,false
+unblacklist_player,POST,1,player_id,<class 'bool'>,true,api.can_delete_blacklist_records|api.can_remove_perma_bans|api.can_remove_temp_bans,true
+unflag_player,POST,3,flag_id|player_id|flag,<class 'rcon.types.PlayerFlagType'>,true,api.can_unflag_player,true
+unwatch_player,POST,1,player_id,<class 'bool'>,true,api.can_remove_player_watch,false
+upload_vips,POST,0,,,false,api.can_upload_vip_list,false
+upload_vips_result,GET,0,,,false,api.can_upload_vip_list,false
+validate_admin_pings_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_admin_pings_discord_webhooks_config,false
+validate_audit_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_audit_discord_webhooks_config,false
+validate_auto_broadcasts_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_broadcast_config,false
+validate_auto_mod_level_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_mod_level_config,false
+validate_auto_mod_no_leader_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_mod_no_leader_config,false
+validate_auto_mod_seeding_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_mod_seeding_config,false
+validate_auto_mod_solo_tank_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_auto_mod_solo_tank_config,false
+validate_camera_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_camera_discord_webhooks_config,false
+validate_camera_notification_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_camera_config,false
+validate_chat_commands_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_chat_commands_config,false
+validate_chat_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_chat_discord_webhooks_config,false
+validate_expired_vip_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_expired_vip_config,false
+validate_kills_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_kills_discord_webhooks_config,false
+validate_log_line_webhook_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_log_line_discord_webhook_config,false
+validate_log_stream_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_log_stream_config,false
+validate_name_kick_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_name_kick_config,false
+validate_rcon_chat_commands_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_rcon_chat_commands_config,false
+validate_rcon_connection_settings_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_rcon_connection_settings_config,false
+validate_rcon_server_settings_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_rcon_server_settings_config,false
+validate_real_vip_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_real_vip_config,false
+validate_scoreboard_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_scorebot_config,false
+validate_seed_vip_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_seed_vip_config,false
+validate_server_name_change_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_server_name_change_config,false
+validate_standard_broadcast_messages,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_standard_broadcast_messages,false
+validate_standard_punishments_messages,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_standard_punishment_messages,false
+validate_standard_welcome_messages,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_standard_welcome_messages,false
+validate_steam_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_steam_config,false
+validate_tk_ban_on_connect_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_tk_ban_on_connect_config,false
+validate_vac_game_bans_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_vac_game_bans_config,false
+validate_votekick_autotoggle_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_votekick_autotoggle_config,false
+validate_votemap_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_votemap_config,false
+validate_watch_killrate_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_watch_killrate_config,false
+validate_watchlist_discord_webhooks_config,POST,4,by|config|reset_to_default|kwargs,<class 'bool'>,true,api.can_change_watchlist_discord_webhooks_config,false
+watch_player,POST,4,player_id|reason|by|player_name,<class 'bool'>,true,api.can_add_player_watch,false

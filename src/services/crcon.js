@@ -190,6 +190,31 @@ class CRCONService {
     async getMapHistory() {
         return this.get('get_map_history');
     }
+
+    // Auto Mod - Solo Tank
+    async describeAutoModSoloTankConfig() {
+        return this.get('describe_auto_mod_solo_tank_config');
+    }
+
+    async getAutoModSoloTankConfig() {
+        return this.get('get_auto_mod_solo_tank_config');
+    }
+
+    async validateAutoModSoloTankConfig(by, config, resetToDefault = false) {
+        return this.post('validate_auto_mod_solo_tank_config', {
+            by,
+            config,
+            reset_to_default: resetToDefault
+        });
+    }
+
+    async setAutoModSoloTankConfig(by, config, resetToDefault = false) {
+        return this.post('set_auto_mod_solo_tank_config', {
+            by,
+            config,
+            reset_to_default: resetToDefault
+        });
+    }
 }
 
 // Create service instances
