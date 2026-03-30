@@ -540,12 +540,68 @@ class MapVotingService {
         return result;
     }
 
+    normalizeMapKey(value) {
+        if (value === undefined || value === null) return null;
+        return String(value).trim().toLowerCase();
+    }
+
+    getMapAliases(map) {
+        return [
+            map?.id,
+            map?.pretty_name,
+            map?.name,
+            map?.map?.id,
+            map?.map?.name,
+            map?.map?.pretty_name
+        ]
+            .map(value => this.normalizeMapKey(value))
+            .filter(Boolean);
+    }
+
+    buildCanonicalMapLookup(allMaps) {
+        const lookup = new Map();
+
+        for (const map of allMaps) {
+            for (const alias of this.getMapAliases(map)) {
+                lookup.set(alias, map.id);
+            }
+        }
+
+        return lookup;
+    }
+
+    getRecentMapIds(historyEntries, canonicalMapLookup) {
+        const recentMapIds = new Set();
+
+        for (const entry of historyEntries) {
+            const aliases = [
+                entry?.map_id,
+                entry?.id,
+                entry?.name,
+                entry?.pretty_name,
+                entry?.map?.id,
+                entry?.map?.name,
+                entry?.map?.pretty_name
+            ]
+                .map(value => this.normalizeMapKey(value))
+                .filter(Boolean);
+
+            for (const alias of aliases) {
+                recentMapIds.add(canonicalMapLookup.get(alias) || alias);
+            }
+        }
+
+        return recentMapIds;
+    }
+
     async getMapsToVote() {
         try {
             const allMaps = await this.getAllMaps();
             if (!allMaps || allMaps.length === 0) {
                 return null;
             }
+
+            const canonicalMapLookup = this.buildCanonicalMapLookup(allMaps);
 
             // Get recent maps to exclude
             let recentMapIds = new Set();
@@ -554,13 +610,7 @@ class MapVotingService {
                 if (historyResponse?.result && Array.isArray(historyResponse.result)) {
                     // Get the last N maps played (excludeRecentMaps setting)
                     const recentMaps = historyResponse.result.slice(0, this.excludeRecentMaps);
-                    for (const entry of recentMaps) {
-                        // Try all possible ID formats
-                        if (entry.map_id) recentMapIds.add(entry.map_id);
-                        if (entry.map?.id) recentMapIds.add(entry.map.id);
-                        if (entry.name) recentMapIds.add(entry.name);
-                        if (entry.id) recentMapIds.add(entry.id);
-                    }
+                    recentMapIds = this.getRecentMapIds(recentMaps, canonicalMapLookup);
                     if (recentMapIds.size > 0) {
                         logger.info(`[MapVoting S${this.serverNum}] Excluding ${recentMapIds.size} recent map IDs: ${[...recentMapIds].join(', ')}`);
                     }
