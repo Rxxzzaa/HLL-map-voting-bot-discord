@@ -494,7 +494,7 @@ class SchedulePanelService {
             .setDescription(
                 `Schedule ID: **${scheduleId}**\n` +
                 'Pick a field from dropdown to edit it.\n' +
-                'Use **Commit Changes** to save this module to the schedule.\n\n' +
+                'Use **Save to Schedule** to persist this module for the schedule.\n\n' +
                 table
             );
 
@@ -518,11 +518,6 @@ class SchedulePanelService {
                 .setEmoji('🔄')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
-                .setCustomId(`schedule_automod_commit_${moduleType}_${serverNum}_${scheduleId}`)
-                .setLabel('Commit Changes')
-                .setEmoji('✅')
-                .setStyle(ButtonStyle.Success),
-            new ButtonBuilder()
                 .setCustomId(`schedule_automod_save_${moduleType}_${serverNum}_${scheduleId}`)
                 .setLabel('Save to Schedule')
                 .setEmoji('💾')
@@ -535,7 +530,7 @@ class SchedulePanelService {
         ];
 
         if (moduleType === 'level') {
-            actionButtons.splice(3, 0,
+            actionButtons.splice(2, 0,
                 new ButtonBuilder()
                     .setCustomId(`schedule_automod_roles_${serverNum}_${scheduleId}`)
                     .setLabel('Edit Role Levels')

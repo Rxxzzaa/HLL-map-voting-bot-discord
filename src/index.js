@@ -1309,45 +1309,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     }
                 }
 
-                // Schedule automods - commit draft to schedule config
-                else if (customId.startsWith('schedule_automod_commit_')) {
-                    const idParts = customId.split('_');
-                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
-                    const scheduleId = idParts[idParts.length - 1];
-                    const moduleType = idParts.slice(3, idParts.length - 2).join('_').replace('commit_', '');
-                    const schedule = getScheduleById(srvNum, scheduleId);
-                    if (!schedule) {
-                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
-                    }
-
-                    const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
-                    const draft = getScheduleAutoModDraftMap(moduleType).get(draftKey);
-                    if (!draft) {
-                        return replyEphemeralAutoDelete(interaction, `No ${moduleType} draft found. Open the panel and edit values first.`);
-                    }
-
-                    const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
-                        automodConfigs: {
-                            ...(schedule.automodConfigs || {}),
-                            [moduleType]: draft
-                        }
-                    });
-                    if (!updateResult.success) {
-                        return replyEphemeralAutoDelete(interaction, `Failed to save schedule ${moduleType} config: ${updateResult.error}`);
-                    }
-
-                    await interaction.deferUpdate();
-                    const panel = schedulePanel.buildScheduleAutomodModulePanel(srvNum, scheduleId, moduleType, draft);
-                    await updatePanelMessage(interaction, panel);
-                    await followUpEphemeralAutoDelete(interaction, `${moduleType} schedule config saved.`, 10000);
-                }
-
                 // Schedule automods - save current draft directly to this schedule
-                else if (customId.startsWith('schedule_automod_save_')) {
+                else if (customId.startsWith('schedule_automod_save_') || customId.startsWith('schedule_automod_commit_')) {
                     const idParts = customId.split('_');
                     const srvNum = parseInt(idParts[idParts.length - 2], 10);
                     const scheduleId = idParts[idParts.length - 1];
-                    const moduleType = idParts.slice(3, idParts.length - 2).join('_').replace('save_', '');
+                    const moduleType = idParts
+                        .slice(3, idParts.length - 2)
+                        .join('_')
+                        .replace(/^save_/, '')
+                        .replace(/^commit_/, '');
                     const schedule = getScheduleById(srvNum, scheduleId);
                     if (!schedule) {
                         return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
@@ -2134,11 +2105,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
             if (customId.startsWith('schedule_automod_field_modal_')) {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-                const idParts = customId.replace('schedule_automod_field_modal_', '').split('_');
-                const fieldKey = idParts[idParts.length - 1];
-                const scheduleId = idParts[idParts.length - 2];
-                const srvNum = parseInt(idParts[idParts.length - 3], 10);
-                const moduleType = idParts.slice(0, idParts.length - 3).join('_');
+                const match = customId.match(/^schedule_automod_field_modal_(level|no_leader|solo_tank)_(\d+)_([^_]+)_(.+)$/);
+                if (!match) {
+                    await interaction.editReply({ content: 'Invalid schedule automod modal ID.' });
+                    return;
+                }
+                const moduleType = match[1];
+                const srvNum = parseInt(match[2], 10);
+                const scheduleId = match[3];
+                const fieldKey = match[4];
 
                 const fieldDefs = getScheduleAutomodFieldDefinitions(moduleType);
                 const fieldDef = fieldDefs?.find(field => field.key === fieldKey);
