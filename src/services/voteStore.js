@@ -4,10 +4,10 @@
  */
 
 const fs = require('fs');
-const path = require('path');
 const logger = require('../utils/logger');
+const { getDataFilePath } = require('../utils/dataPath');
 
-const STORE_PATH = path.join(__dirname, '../../data/votes.json');
+const STORE_PATH = getDataFilePath('votes.json');
 
 class VoteStore {
     constructor() {

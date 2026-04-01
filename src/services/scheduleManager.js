@@ -6,8 +6,9 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
+const { getDataFilePath } = require('../utils/dataPath');
 
-const SCHEDULE_PATH = path.join(__dirname, '../../data/schedules.json');
+const SCHEDULE_PATH = getDataFilePath('schedules.json');
 const SCHEDULE_BACKUP_PATH = `${SCHEDULE_PATH}.bak`;
 const SCHEDULE_TMP_PATH = `${SCHEDULE_PATH}.tmp`;
 

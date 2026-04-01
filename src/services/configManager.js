@@ -4,10 +4,10 @@
  */
 
 const fs = require('fs');
-const path = require('path');
 const logger = require('../utils/logger');
+const { getDataFilePath } = require('../utils/dataPath');
 
-const CONFIG_PATH = path.join(__dirname, '../../data/config.json');
+const CONFIG_PATH = getDataFilePath('config.json');
 
 class ConfigManager {
     constructor() {

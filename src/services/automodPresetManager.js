@@ -4,10 +4,10 @@
  */
 
 const fs = require('fs');
-const path = require('path');
 const logger = require('../utils/logger');
+const { getDataFilePath } = require('../utils/dataPath');
 
-const PRESET_PATH = path.join(__dirname, '../../data/automod-presets.json');
+const PRESET_PATH = getDataFilePath('automod-presets.json');
 
 const TYPE_LABELS = {
     level: 'Level',
