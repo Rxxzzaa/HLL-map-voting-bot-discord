@@ -8,6 +8,8 @@ const path = require('path');
 const logger = require('../utils/logger');
 
 const SCHEDULE_PATH = path.join(__dirname, '../../data/schedules.json');
+const SCHEDULE_BACKUP_PATH = `${SCHEDULE_PATH}.bak`;
+const SCHEDULE_TMP_PATH = `${SCHEDULE_PATH}.tmp`;
 
 // Common timezones for dropdown
 const COMMON_TIMEZONES = [
@@ -44,10 +46,26 @@ class ScheduleManager {
 
             if (fs.existsSync(SCHEDULE_PATH)) {
                 const content = fs.readFileSync(SCHEDULE_PATH, 'utf8');
-                return JSON.parse(content);
+                const parsed = JSON.parse(content);
+                if (!parsed || typeof parsed !== 'object' || !parsed.servers || typeof parsed.servers !== 'object') {
+                    throw new Error('Invalid schedules.json format');
+                }
+                return parsed;
             }
         } catch (error) {
             logger.error('[ScheduleManager] Error loading data:', error);
+            try {
+                if (fs.existsSync(SCHEDULE_BACKUP_PATH)) {
+                    const backupContent = fs.readFileSync(SCHEDULE_BACKUP_PATH, 'utf8');
+                    const backupParsed = JSON.parse(backupContent);
+                    if (backupParsed && typeof backupParsed === 'object' && backupParsed.servers && typeof backupParsed.servers === 'object') {
+                        logger.warn('[ScheduleManager] Loaded schedules from backup file after primary load failed.');
+                        return backupParsed;
+                    }
+                }
+            } catch (backupError) {
+                logger.error('[ScheduleManager] Error loading backup data:', backupError);
+            }
         }
 
         return { servers: {} };
@@ -59,10 +77,28 @@ class ScheduleManager {
             if (!fs.existsSync(dataDir)) {
                 fs.mkdirSync(dataDir, { recursive: true });
             }
-            fs.writeFileSync(SCHEDULE_PATH, JSON.stringify(this.data, null, 2));
+            const payload = JSON.stringify(this.data, null, 2);
+
+            if (fs.existsSync(SCHEDULE_PATH)) {
+                try {
+                    fs.copyFileSync(SCHEDULE_PATH, SCHEDULE_BACKUP_PATH);
+                } catch (backupError) {
+                    logger.warn('[ScheduleManager] Could not update schedules backup file:', backupError);
+                }
+            }
+
+            fs.writeFileSync(SCHEDULE_TMP_PATH, payload, 'utf8');
+            fs.renameSync(SCHEDULE_TMP_PATH, SCHEDULE_PATH);
             return true;
         } catch (error) {
             logger.error('[ScheduleManager] Error saving data:', error);
+            try {
+                if (fs.existsSync(SCHEDULE_TMP_PATH)) {
+                    fs.unlinkSync(SCHEDULE_TMP_PATH);
+                }
+            } catch {
+                // Ignore cleanup failures
+            }
             return false;
         }
     }
@@ -89,8 +125,12 @@ class ScheduleManager {
     // Set timezone
     setTimezone(serverNum, timezone) {
         const config = this.initServer(serverNum);
+        const previousTimezone = config.timezone;
         config.timezone = timezone;
-        this.saveData();
+        if (!this.saveData()) {
+            config.timezone = previousTimezone;
+            return false;
+        }
         logger.info(`[ScheduleManager] Server ${serverNum} timezone set to ${timezone}`);
         return true;
     }
@@ -214,7 +254,7 @@ class ScheduleManager {
         const config = this.initServer(serverNum);
 
         const schedule = {
-            id: `s${Date.now()}`,
+            id: `s${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
             name: scheduleData.name || 'New Schedule',
             startTime: scheduleData.startTime || '00:00',
             endTime: scheduleData.endTime || '23:59',
@@ -236,7 +276,10 @@ class ScheduleManager {
         };
 
         config.schedules.push(schedule);
-        this.saveData();
+        if (!this.saveData()) {
+            config.schedules = config.schedules.filter(item => item.id !== schedule.id);
+            return null;
+        }
 
         logger.info(`[ScheduleManager] Created schedule "${schedule.name}" for server ${serverNum}`);
         return schedule;
@@ -252,6 +295,7 @@ class ScheduleManager {
         }
 
         const schedule = config.schedules[index];
+        const originalSchedule = JSON.parse(JSON.stringify(schedule));
 
         // Update allowed fields
         if (updates.name !== undefined) schedule.name = updates.name;
@@ -266,7 +310,10 @@ class ScheduleManager {
         if (updates.automodProfiles !== undefined) schedule.automodProfiles = updates.automodProfiles;
 
         schedule.updatedAt = new Date().toISOString();
-        this.saveData();
+        if (!this.saveData()) {
+            config.schedules[index] = originalSchedule;
+            return { success: false, error: 'Failed to save schedule changes' };
+        }
 
         logger.info(`[ScheduleManager] Updated schedule "${schedule.name}" for server ${serverNum}`);
         return { success: true, schedule };
@@ -288,7 +335,10 @@ class ScheduleManager {
             config.activeOverride = null;
         }
 
-        this.saveData();
+        if (!this.saveData()) {
+            config.schedules.splice(index, 0, deleted);
+            return { success: false, error: 'Failed to save schedule deletion' };
+        }
         logger.info(`[ScheduleManager] Deleted schedule "${deleted.name}" from server ${serverNum}`);
         return { success: true };
     }
@@ -302,6 +352,7 @@ class ScheduleManager {
     // Set override
     setOverride(serverNum, scheduleId, type, durationHours = null) {
         const config = this.getServerConfig(serverNum);
+        const previousOverride = config.activeOverride ? { ...config.activeOverride } : null;
 
         // Validate schedule exists (or allow 'default')
         if (scheduleId !== 'default') {
@@ -324,7 +375,10 @@ class ScheduleManager {
             setAt: new Date().toISOString()
         };
 
-        this.saveData();
+        if (!this.saveData()) {
+            config.activeOverride = previousOverride;
+            return { success: false, error: 'Failed to save override' };
+        }
 
         // Set timer to clear override if hours-based
         if (expiresAt) {
@@ -347,8 +401,12 @@ class ScheduleManager {
     // Clear override
     clearOverride(serverNum) {
         const config = this.getServerConfig(serverNum);
+        const previousOverride = config.activeOverride ? { ...config.activeOverride } : null;
         config.activeOverride = null;
-        this.saveData();
+        if (!this.saveData()) {
+            config.activeOverride = previousOverride;
+            return { success: false, error: 'Failed to clear override' };
+        }
 
         // Clear timer if exists
         if (this.overrideTimers.has(serverNum)) {

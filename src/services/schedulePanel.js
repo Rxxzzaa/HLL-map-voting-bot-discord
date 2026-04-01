@@ -1041,6 +1041,9 @@ class SchedulePanelService {
         } else {
             // Create new
             const schedule = scheduleManager.createSchedule(serverNum, scheduleData);
+            if (!schedule) {
+                return { success: false, error: 'Failed to save new schedule. Please try again.' };
+            }
             return { success: true, schedule, isNew: true };
         }
     }
