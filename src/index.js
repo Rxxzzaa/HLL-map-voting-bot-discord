@@ -206,6 +206,16 @@ async function replyEphemeralAutoDelete(interaction, content, delayMs = 10000) {
     }, delayMs);
 }
 
+async function editReplyEphemeralAutoDelete(interaction, content, delayMs = 10000) {
+    await interaction.editReply({ content });
+
+    setTimeout(() => {
+        interaction.deleteReply().catch(() => {
+            // Ignore: message may already be dismissed or expired.
+        });
+    }, delayMs);
+}
+
 async function sendTemporaryScheduleExport(interaction, fileName, fileContent, delayMs = 30000) {
     if (!interaction.channel) {
         return { success: false, error: 'Channel unavailable for export.' };
@@ -2153,7 +2163,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 draftMap.set(draftKey, nextModule);
 
                 const panel = schedulePanel.buildScheduleAutomodModulePanel(srvNum, scheduleId, moduleType, nextModule);
-                await interaction.editReply({ content: `Updated **${fieldDef.label}** in draft.` });
+                await editReplyEphemeralAutoDelete(interaction, `Updated **${fieldDef.label}** in draft.`, 10000);
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                 return;
             }
@@ -2211,7 +2221,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 scheduleAutoModLevelDrafts.set(draftKey, levelCfg);
 
                 const panel = schedulePanel.buildScheduleAutomodRolesPanel(srvNum, scheduleId, levelCfg);
-                await interaction.editReply({ content: `Updated role threshold **${roleKey}** in draft.` });
+                await editReplyEphemeralAutoDelete(interaction, `Updated role threshold **${roleKey}** in draft.`, 10000);
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                 return;
             }
@@ -2259,7 +2269,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     'draft'
                 );
 
-                await interaction.editReply({ content: `Updated **${fieldDef.label}**.` });
+                await editReplyEphemeralAutoDelete(interaction, `Updated **${fieldDef.label}**.`, 10000);
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                 return;
             }
@@ -2307,7 +2317,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     'draft'
                 );
 
-                await interaction.editReply({ content: `Updated **${fieldDef.label}**.` });
+                await editReplyEphemeralAutoDelete(interaction, `Updated **${fieldDef.label}**.`, 10000);
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                 return;
             }
@@ -2358,7 +2368,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     'draft'
                 );
 
-                await interaction.editReply({ content: `Updated **${fieldDef.label}**.` });
+                await editReplyEphemeralAutoDelete(interaction, `Updated **${fieldDef.label}**.`, 10000);
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                 return;
             }
