@@ -45,6 +45,51 @@ class SchedulePanelService {
         return Object.values(generalSettings).some(value => value !== null && value !== undefined);
     }
 
+    buildGeneralSettingsExportLines(schedule) {
+        const generalSettings = {
+            ...this.getDefaultScheduleGeneralSettings(),
+            ...(schedule?.generalSettings || {})
+        };
+        const defs = this.getScheduleGeneralSettingDefinitions();
+
+        return [
+            'General Settings:',
+            ...defs.map(def => {
+                const value = generalSettings[def.key];
+                if (value === null || value === undefined) {
+                    return `- ${def.label}: Server (inherit)`;
+                }
+                return `- ${def.label}: ${value} ${def.unit} (schedule-specific)`;
+            })
+        ];
+    }
+
+    buildAutomodExportLines(schedule) {
+        const automodConfigs = schedule?.automodConfigs || {};
+        const automodProfiles = schedule?.automodProfiles || {};
+        const moduleDefs = [
+            { key: 'level', label: 'Level' },
+            { key: 'no_leader', label: 'No Leader' },
+            { key: 'solo_tank', label: 'No Solo Tank' }
+        ];
+
+        return [
+            'Automods:',
+            ...moduleDefs.map(def => {
+                const config = automodConfigs[def.key];
+                const profile = automodProfiles[def.key];
+                if (config && typeof config === 'object') {
+                    const configuredFields = Object.keys(config).length;
+                    return `- ${def.label}: Schedule-specific (${configuredFields} fields)`;
+                }
+                if (profile) {
+                    return `- ${def.label}: Preset attachment (${profile})`;
+                }
+                return `- ${def.label}: Server (inherit)`;
+            })
+        ];
+    }
+
     /**
      * Build main schedule management panel
      */
@@ -1418,6 +1463,10 @@ class SchedulePanelService {
             `Source: ${sourceMode}`,
             `Exported At (UTC): ${exportedAt}`,
             '',
+            ...this.buildGeneralSettingsExportLines(schedule),
+            '',
+            ...this.buildAutomodExportLines(schedule),
+            '',
             `Included Maps (${uniqueMapIds.length}):`,
             ...(
                 lines.length > 0
@@ -1487,6 +1536,8 @@ class SchedulePanelService {
                 `Time Range: ${schedule.startTime} - ${schedule.endTime}`,
                 `Days: ${(schedule.days || []).join(', ') || 'all'}`,
                 `Source: ${sourceMode}`,
+                ...this.buildGeneralSettingsExportLines(schedule),
+                ...this.buildAutomodExportLines(schedule),
                 `Included Maps (${uniqueMapIds.length}):`,
                 ...(lines.length > 0 ? lines : ['(No maps included)']),
                 ''
