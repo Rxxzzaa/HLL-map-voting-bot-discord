@@ -35,6 +35,14 @@ class SchedulePanelService {
         ];
     }
 
+    hasScheduleSpecificGeneralSettings(schedule) {
+        const generalSettings = {
+            ...this.getDefaultScheduleGeneralSettings(),
+            ...(schedule?.generalSettings || {})
+        };
+        return Object.values(generalSettings).some(value => value !== null && value !== undefined);
+    }
+
     /**
      * Build main schedule management panel
      */
@@ -43,6 +51,7 @@ class SchedulePanelService {
         const schedules = scheduleManager.getSchedules(serverNum);
         const activeSchedule = scheduleManager.getActiveSchedule(serverNum);
         const { time, day, timezone } = scheduleManager.getCurrentTime(serverNum);
+        const hasAnyScheduleGeneralOverrides = schedules.some(schedule => this.hasScheduleSpecificGeneralSettings(schedule));
 
         const embed = new EmbedBuilder()
             .setTitle(`⏰ Schedule Manager - ${serverName}`)
@@ -138,8 +147,24 @@ class SchedulePanelService {
                 .setDisabled(schedules.length === 0)
         );
 
-        // Buttons Row 2 - Settings
+        // Buttons Row 2 - General/Automod settings
         const row2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_general_${serverNum}`)
+                .setLabel('General Settings')
+                .setEmoji('⚙️')
+                .setStyle(hasAnyScheduleGeneralOverrides ? ButtonStyle.Success : ButtonStyle.Secondary)
+                .setDisabled(schedules.length === 0),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automods_${serverNum}`)
+                .setLabel('Edit Automods')
+                .setEmoji('🤖')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(schedules.length === 0)
+        );
+
+        // Buttons Row 3 - Timezone/Override navigation
+        const row3 = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`schedule_timezone_${serverNum}`)
                 .setLabel('Set Timezone')
@@ -162,21 +187,6 @@ class SchedulePanelService {
                 .setLabel('Back')
                 .setEmoji('⬅️')
                 .setStyle(ButtonStyle.Secondary)
-        );
-
-        const row3 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`schedule_general_${serverNum}`)
-                .setLabel('General Settings')
-                .setEmoji('⚙️')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(schedules.length === 0),
-            new ButtonBuilder()
-                .setCustomId(`schedule_automods_${serverNum}`)
-                .setLabel('Edit Automods')
-                .setEmoji('🤖')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(schedules.length === 0)
         );
 
         return { embeds: [embed], components: [row1, row2, row3] };
@@ -369,10 +379,14 @@ class SchedulePanelService {
 
     buildScheduleGeneralSelectPanel(serverNum) {
         const schedules = scheduleManager.getSchedules(serverNum);
+        const configuredCount = schedules.filter(schedule => this.hasScheduleSpecificGeneralSettings(schedule)).length;
 
         const embed = new EmbedBuilder()
             .setTitle('⚙️ Select Schedule for General Settings')
-            .setDescription('Choose which schedule should have general settings edited.')
+            .setDescription(
+                'Choose which schedule should have general settings edited.\n\n' +
+                `**Schedule-specific configured:** ${configuredCount}/${schedules.length}`
+            )
             .setColor(0x16A085);
 
         if (schedules.length === 0) {
@@ -389,7 +403,7 @@ class SchedulePanelService {
 
         const options = schedules.map(schedule => ({
             label: schedule.name.substring(0, 100),
-            description: `${schedule.startTime}-${schedule.endTime}`.substring(0, 100),
+            description: `${schedule.startTime}-${schedule.endTime} | ${this.hasScheduleSpecificGeneralSettings(schedule) ? 'Schedule-specific active' : 'Using server settings'}`.substring(0, 100),
             value: schedule.id
         }));
 
@@ -454,12 +468,13 @@ class SchedulePanelService {
         );
 
         const editRow = new ActionRowBuilder().addComponents(
-            ...defs.map(def =>
-                new ButtonBuilder()
+            ...defs.map(def => {
+                const enabled = scheduleValues[def.key] !== null && scheduleValues[def.key] !== undefined;
+                return new ButtonBuilder()
                     .setCustomId(`schedule_general_edit_${def.key}_${serverNum}_${scheduleId}`)
                     .setLabel(`Edit ${def.label}`)
-                    .setStyle(ButtonStyle.Secondary)
-            )
+                    .setStyle(enabled ? ButtonStyle.Success : ButtonStyle.Secondary);
+            })
         );
 
         const backRow = new ActionRowBuilder().addComponents(

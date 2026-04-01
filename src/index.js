@@ -40,6 +40,7 @@ const crconServices = {};
 const mapVotePanelService = new MapVotePanelService();
 let isDiscordReady = false;
 let healthServer = null;
+let isShuttingDown = false;
 const autoModSoloTankDrafts = new Map();
 const autoModNoLeaderDrafts = new Map();
 const autoModLevelDrafts = new Map();
@@ -2871,6 +2872,14 @@ process.on('unhandledRejection', (error) => {
 });
 
 async function gracefulShutdown(signal) {
+    if (isShuttingDown) {
+        return;
+    }
+    isShuttingDown = true;
+
+    const stamp = new Date().toISOString();
+    // Keep a plain console line so shutdown context is visible even if logger transport is interrupted.
+    console.log(`${stamp} [shutdown] Received ${signal}, starting graceful shutdown`);
     logger.info(`Received ${signal}, shutting down...`);
 
     try {
@@ -2887,15 +2896,31 @@ async function gracefulShutdown(signal) {
         logger.warn('Error while closing Discord client:', error);
     }
 
+    console.log(`${new Date().toISOString()} [shutdown] Cleanup complete, exiting process`);
     process.exit(0);
 }
 
 process.on('SIGTERM', () => {
+    logger.warn('[Shutdown] SIGTERM received from host/platform');
     gracefulShutdown('SIGTERM');
 });
 
 process.on('SIGINT', () => {
+    logger.warn('[Shutdown] SIGINT received');
     gracefulShutdown('SIGINT');
+});
+
+process.on('beforeExit', (code) => {
+    logger.warn(`[Shutdown] beforeExit fired with code ${code}`);
+});
+
+process.on('exit', (code) => {
+    // Use console to guarantee visibility at process teardown.
+    console.log(`${new Date().toISOString()} [shutdown] process exit with code ${code}`);
+});
+
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught exception:', error);
 });
 
 // Login
