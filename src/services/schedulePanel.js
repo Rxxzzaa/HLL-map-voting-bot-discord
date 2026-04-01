@@ -361,7 +361,7 @@ class SchedulePanelService {
             solo_tank: null
         };
 
-        const status = (cfg) => cfg && typeof cfg === 'object' ? 'Custom' : 'Not Set';
+        const status = (cfg) => cfg && typeof cfg === 'object' ? 'Schedule Specific' : 'Use Server Settings';
 
         const embed = new EmbedBuilder()
             .setTitle(`🤖 Edit Automods - ${schedule.name}`)
@@ -373,6 +373,21 @@ class SchedulePanelService {
                 `**No Leader:** ${status(automodConfigs.no_leader)}\n` +
                 `**No Solo Tank:** ${status(automodConfigs.solo_tank)}`
             );
+
+        const toggleRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_toggle_level_${serverNum}_${scheduleId}`)
+                .setLabel(`Level: ${automodConfigs.level ? 'Schedule' : 'Server'}`)
+                .setStyle(automodConfigs.level ? ButtonStyle.Success : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_toggle_no_leader_${serverNum}_${scheduleId}`)
+                .setLabel(`No Leader: ${automodConfigs.no_leader ? 'Schedule' : 'Server'}`)
+                .setStyle(automodConfigs.no_leader ? ButtonStyle.Success : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_toggle_solo_tank_${serverNum}_${scheduleId}`)
+                .setLabel(`No Solo Tank: ${automodConfigs.solo_tank ? 'Schedule' : 'Server'}`)
+                .setStyle(automodConfigs.solo_tank ? ButtonStyle.Success : ButtonStyle.Secondary)
+        );
 
         const editRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -389,19 +404,6 @@ class SchedulePanelService {
                 .setStyle(ButtonStyle.Secondary)
         );
 
-        const utilityRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`schedule_automod_load_current_${serverNum}_${scheduleId}`)
-                .setLabel('Load Current Server')
-                .setEmoji('📥')
-                .setStyle(ButtonStyle.Primary),
-            new ButtonBuilder()
-                .setCustomId(`schedule_automod_clear_${serverNum}_${scheduleId}`)
-                .setLabel('Clear Automods')
-                .setEmoji('🧹')
-                .setStyle(ButtonStyle.Danger)
-        );
-
         const backRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`schedule_automods_${serverNum}`)
@@ -410,7 +412,7 @@ class SchedulePanelService {
                 .setStyle(ButtonStyle.Secondary)
         );
 
-        return { embeds: [embed], components: [editRow, utilityRow, backRow] };
+        return { embeds: [embed], components: [toggleRow, editRow, backRow] };
     }
 
     getDefaultLevelThresholds() {
@@ -448,8 +450,8 @@ class SchedulePanelService {
         return {};
     }
 
-    buildScheduleAutomodModulePanel(serverNum, scheduleId, moduleType) {
-        const config = this.getScheduleAutomodConfig(serverNum, scheduleId, moduleType);
+    buildScheduleAutomodModulePanel(serverNum, scheduleId, moduleType, draftConfig = null) {
+        const config = draftConfig || this.getScheduleAutomodConfig(serverNum, scheduleId, moduleType);
         if (!config) {
             return { content: 'Schedule not found.' };
         }
@@ -492,7 +494,7 @@ class SchedulePanelService {
             .setDescription(
                 `Schedule ID: **${scheduleId}**\n` +
                 'Pick a field from dropdown to edit it.\n' +
-                'Changes are saved directly to this schedule.\n\n' +
+                'Use **Commit Changes** to save this module to the schedule.\n\n' +
                 table
             );
 
@@ -511,10 +513,20 @@ class SchedulePanelService {
 
         const actionButtons = [
             new ButtonBuilder()
-                .setCustomId(`schedule_automod_reset_${moduleType}_${serverNum}_${scheduleId}`)
-                .setLabel('Reset Module')
-                .setEmoji('♻️')
-                .setStyle(ButtonStyle.Danger),
+                .setCustomId(`schedule_automod_refresh_${moduleType}_${serverNum}_${scheduleId}`)
+                .setLabel('Refresh')
+                .setEmoji('🔄')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_commit_${moduleType}_${serverNum}_${scheduleId}`)
+                .setLabel('Commit Changes')
+                .setEmoji('✅')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_save_${moduleType}_${serverNum}_${scheduleId}`)
+                .setLabel('Save Config')
+                .setEmoji('💾')
+                .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
                 .setCustomId(`schedule_automod_edit_${serverNum}_${scheduleId}`)
                 .setLabel('Back')
@@ -523,11 +535,11 @@ class SchedulePanelService {
         ];
 
         if (moduleType === 'level') {
-            actionButtons.splice(1, 0,
+            actionButtons.splice(3, 0,
                 new ButtonBuilder()
                     .setCustomId(`schedule_automod_roles_${serverNum}_${scheduleId}`)
                     .setLabel('Edit Role Levels')
-                    .setStyle(ButtonStyle.Primary)
+                    .setStyle(ButtonStyle.Secondary)
             );
         }
 
@@ -535,8 +547,8 @@ class SchedulePanelService {
         return { embeds: [embed], components: [...selectRows, actionRow] };
     }
 
-    buildScheduleAutomodRolesPanel(serverNum, scheduleId) {
-        const config = this.getScheduleAutomodConfig(serverNum, scheduleId, 'level');
+    buildScheduleAutomodRolesPanel(serverNum, scheduleId, draftConfig = null) {
+        const config = draftConfig || this.getScheduleAutomodConfig(serverNum, scheduleId, 'level');
         if (!config) {
             return { content: 'Schedule not found.' };
         }
