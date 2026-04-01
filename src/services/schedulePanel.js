@@ -23,7 +23,8 @@ class SchedulePanelService {
         return {
             teamSwitchCooldown: null,
             idleAutokickTime: null,
-            maxPingAutokick: null
+            maxPingAutokick: null,
+            mapVoteCooldownVotes: null
         };
     }
 
@@ -31,7 +32,8 @@ class SchedulePanelService {
         return [
             { key: 'teamSwitchCooldown', label: 'Team Switch Cooldown', unit: 'min' },
             { key: 'idleAutokickTime', label: 'Idle Autokick Time', unit: 'min' },
-            { key: 'maxPingAutokick', label: 'Max Ping Autokick', unit: 'ms' }
+            { key: 'maxPingAutokick', label: 'Max Ping Autokick', unit: 'ms' },
+            { key: 'mapVoteCooldownVotes', label: 'Map Vote Cooldown', unit: 'votes' }
         ];
     }
 
@@ -761,11 +763,17 @@ class SchedulePanelService {
             };
         });
 
+        options.unshift({
+            label: 'Export All Schedules',
+            description: `Export included maps for all ${schedules.length} schedules`,
+            value: '__all__'
+        });
+
         const selectRow = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId(`schedule_select_export_${serverNum}`)
                 .setPlaceholder('Select a schedule to export...')
-                .addOptions(options)
+                .addOptions(options.slice(0, 25))
         );
 
         const backRow = new ActionRowBuilder().addComponents(
@@ -1425,6 +1433,85 @@ class SchedulePanelService {
             content: contentLines.join('\n'),
             mapCount: uniqueMapIds.length,
             scheduleName: schedule.name
+        };
+    }
+
+    async buildAllSchedulesExport(serverNum, crconService, serverName = null) {
+        const schedules = scheduleManager.getSchedules(serverNum);
+        if (!schedules.length) {
+            return { success: false, error: 'No schedules found.' };
+        }
+
+        let allMaps = [];
+        try {
+            const mapsResponse = await crconService.getMaps();
+            allMaps = mapsResponse?.result || [];
+        } catch (e) {
+            logger.error('[SchedulePanel] Error fetching maps for full export:', e);
+        }
+        const mapById = new Map(allMaps.map(map => [map.id, map]));
+
+        let crconWhitelist = [];
+        try {
+            const whitelistResponse = await crconService.getVotemapWhitelist();
+            crconWhitelist = whitelistResponse?.result || [];
+        } catch (e) {
+            logger.error('[SchedulePanel] Error fetching CRCON whitelist for full export:', e);
+        }
+
+        const sections = [];
+        let totalMaps = 0;
+        schedules.forEach((schedule, scheduleIndex) => {
+            const includedMapIds = schedule.whitelist === null
+                ? crconWhitelist
+                : (Array.isArray(schedule.whitelist) ? schedule.whitelist : []);
+            const uniqueMapIds = [...new Set(includedMapIds)];
+            totalMaps += uniqueMapIds.length;
+
+            const sourceMode = schedule.whitelist === null
+                ? 'CRCON whitelist (Use All Maps mode)'
+                : 'Custom schedule whitelist';
+
+            const lines = uniqueMapIds.map((mapId, index) => {
+                const map = mapById.get(mapId);
+                const displayName = map?.pretty_name || map?.name || mapId;
+                const mode = map?.game_mode || 'unknown';
+                const environment = map?.environment || 'unknown';
+                return `${index + 1}. ${displayName} [${mapId}] (${mode}, ${environment})`;
+            });
+
+            sections.push(
+                `Schedule ${scheduleIndex + 1}: ${schedule.name}`,
+                '--------------------',
+                `Schedule ID: ${schedule.id}`,
+                `Time Range: ${schedule.startTime} - ${schedule.endTime}`,
+                `Days: ${(schedule.days || []).join(', ') || 'all'}`,
+                `Source: ${sourceMode}`,
+                `Included Maps (${uniqueMapIds.length}):`,
+                ...(lines.length > 0 ? lines : ['(No maps included)']),
+                ''
+            );
+        });
+
+        const exportedAt = new Date().toISOString();
+        const filename = `schedule-export-all-s${serverNum}.txt`;
+        const contentLines = [
+            'Schedule Export (All Schedules)',
+            '====================',
+            `Server: ${serverName || `Server ${serverNum}`}`,
+            `Schedules: ${schedules.length}`,
+            `Total Included Map Entries: ${totalMaps}`,
+            `Exported At (UTC): ${exportedAt}`,
+            '',
+            ...sections
+        ];
+
+        return {
+            success: true,
+            filename,
+            content: contentLines.join('\n'),
+            mapCount: totalMaps,
+            scheduleName: 'All Schedules'
         };
     }
 }

@@ -9,6 +9,7 @@ const { crconService } = require('./crcon');
 const scheduleManager = require('./scheduleManager');
 const automodPresetManager = require('./automodPresetManager');
 const voteStore = require('./voteStore');
+const configManager = require('./configManager');
 
 class MapVotingService {
     constructor(serverNum = 1) {
@@ -282,6 +283,12 @@ class MapVotingService {
                 isDefault: schedule.isDefault || false,
                 isOverride: schedule.isOverride || false,
                 settings: schedule.settings,
+                generalSettings: schedule.generalSettings || {
+                    teamSwitchCooldown: null,
+                    idleAutokickTime: null,
+                    maxPingAutokick: null,
+                    mapVoteCooldownVotes: null
+                },
                 whitelist: schedule.whitelist, // null = use CRCON whitelist, array = custom
                 automodConfigs: schedule.automodConfigs || {
                     level: null,
@@ -302,6 +309,12 @@ class MapVotingService {
                 isDefault: true,
                 isOverride: false,
                 settings: null,
+                generalSettings: {
+                    teamSwitchCooldown: null,
+                    idleAutokickTime: null,
+                    maxPingAutokick: null,
+                    mapVoteCooldownVotes: null
+                },
                 whitelist: null,
                 automodConfigs: {
                     level: null,
@@ -470,6 +483,18 @@ class MapVotingService {
                     `[MapVoting S${this.serverNum}] Failed applying ${spec.key} for "${schedule.scheduleName}": ${error.message}`
                 );
             }
+        }
+
+        const serverConfig = configManager.getEffectiveServerConfig(this.serverNum);
+        const serverDefaultCooldown = Math.min(Math.max(parseInt(serverConfig.excludePlayedMapForXvotes ?? 3, 10) || 3, 0), 10);
+        const scheduleCooldown = generalSettings.mapVoteCooldownVotes;
+        if (scheduleCooldown === null || scheduleCooldown === undefined) {
+            this.excludeRecentMaps = serverDefaultCooldown;
+            logger.info(`[MapVoting S${this.serverNum}] Using server map vote cooldown: ${this.excludeRecentMaps}`);
+        } else {
+            const clamped = Math.min(Math.max(parseInt(scheduleCooldown, 10) || 0, 0), 10);
+            this.excludeRecentMaps = clamped;
+            logger.info(`[MapVoting S${this.serverNum}] Applied schedule map vote cooldown: ${this.excludeRecentMaps}`);
         }
     }
 

@@ -36,7 +36,8 @@ function createDefaultScheduleGeneralSettings() {
     return {
         teamSwitchCooldown: null,
         idleAutokickTime: null,
-        maxPingAutokick: null
+        maxPingAutokick: null,
+        mapVoteCooldownVotes: null
     };
 }
 

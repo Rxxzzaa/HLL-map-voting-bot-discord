@@ -343,12 +343,20 @@ function extractApiResultInt(response) {
     return null;
 }
 
-async function getLiveGeneralSettings(crcon) {
+async function getLiveGeneralSettings(crcon, serverNum = 1) {
+    const service = mapVotingServices[serverNum] || null;
+    const config = configManager.getEffectiveServerConfig(serverNum);
+    const fallbackCooldown = parseInt(config.excludePlayedMapForXvotes ?? 3, 10);
+    const mapVoteCooldownVotes = Number.isNaN(fallbackCooldown)
+        ? 3
+        : Math.min(Math.max((service?.excludeRecentMaps ?? fallbackCooldown), 0), 10);
+
     if (!crcon) {
         return {
             teamSwitchCooldown: null,
             idleAutokickTime: null,
-            maxPingAutokick: null
+            maxPingAutokick: null,
+            mapVoteCooldownVotes
         };
     }
 
@@ -361,7 +369,8 @@ async function getLiveGeneralSettings(crcon) {
     return {
         teamSwitchCooldown: extractApiResultInt(teamSwitch),
         idleAutokickTime: extractApiResultInt(idleKick),
-        maxPingAutokick: extractApiResultInt(maxPing)
+        maxPingAutokick: extractApiResultInt(maxPing),
+        mapVoteCooldownVotes
     };
 }
 
@@ -688,7 +697,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             // Show settings panel
             else if (customId === 'mapvote_settings' || customId.startsWith('mapvote_settings_')) {
                 await interaction.deferUpdate();
-                const generalSettings = await getLiveGeneralSettings(crcon);
+                const generalSettings = await getLiveGeneralSettings(crcon, serverNum);
                 const panel = mapVotePanelService.buildSettingsPanel(service, generalSettings);
                 await updatePanelMessage(interaction, panel);
             }
@@ -857,7 +866,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
             else if (customId === 'mapvote_set_team_switch_cooldown') {
-                const generalSettings = await getLiveGeneralSettings(crcon);
+                const generalSettings = await getLiveGeneralSettings(crcon, serverNum);
                 const modal = new ModalBuilder()
                     .setCustomId(`mapvote_modal_team_switch_cooldown_${serverNum}`)
                     .setTitle('Set Team Switch Cooldown')
@@ -875,7 +884,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
             else if (customId === 'mapvote_set_idle_autokick') {
-                const generalSettings = await getLiveGeneralSettings(crcon);
+                const generalSettings = await getLiveGeneralSettings(crcon, serverNum);
                 const modal = new ModalBuilder()
                     .setCustomId(`mapvote_modal_idle_autokick_${serverNum}`)
                     .setTitle('Set Idle Autokick Time')
@@ -893,7 +902,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
             else if (customId === 'mapvote_set_max_ping') {
-                const generalSettings = await getLiveGeneralSettings(crcon);
+                const generalSettings = await getLiveGeneralSettings(crcon, serverNum);
                 const modal = new ModalBuilder()
                     .setCustomId(`mapvote_modal_max_ping_${serverNum}`)
                     .setTitle('Set Max Ping Autokick')
@@ -1310,12 +1319,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const labelMap = {
                         teamSwitchCooldown: 'Team Switch Cooldown',
                         idleAutokickTime: 'Idle Autokick Time',
-                        maxPingAutokick: 'Max Ping Autokick'
+                        maxPingAutokick: 'Max Ping Autokick',
+                        mapVoteCooldownVotes: 'Map Vote Cooldown'
                     };
                     const unitMap = {
                         teamSwitchCooldown: 'minutes',
                         idleAutokickTime: 'minutes',
-                        maxPingAutokick: 'milliseconds'
+                        maxPingAutokick: 'milliseconds',
+                        mapVoteCooldownVotes: 'votes'
                     };
 
                     if (!labelMap[settingKey]) {
@@ -1326,9 +1337,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         teamSwitchCooldown: null,
                         idleAutokickTime: null,
                         maxPingAutokick: null,
+                        mapVoteCooldownVotes: null,
                         ...(schedule.generalSettings || {})
                     };
-                    const liveValues = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                    const liveValues = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1], srvNum);
                     const currentValue = scheduleValues[settingKey] ?? liveValues[settingKey] ?? 0;
 
                     const modal = new ModalBuilder()
@@ -1363,12 +1375,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         teamSwitchCooldown: null,
                         idleAutokickTime: null,
                         maxPingAutokick: null,
+                        mapVoteCooldownVotes: null,
                         ...(schedule.generalSettings || {})
                     };
 
                     let nextValue = null;
                     if (currentGeneralSettings[settingKey] === null || currentGeneralSettings[settingKey] === undefined) {
-                        const liveValues = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                        const liveValues = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1], srvNum);
                         nextValue = liveValues[settingKey];
                         if (nextValue === null || nextValue === undefined) {
                             return replyEphemeralAutoDelete(interaction, `Failed to load current ${settingKey} from server.`);
@@ -1385,7 +1398,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         return replyEphemeralAutoDelete(interaction, `Failed to update setting: ${updateResult.error}`);
                     }
 
-                    const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                    const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1], srvNum);
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleGeneralPanel(srvNum, scheduleId, generalSettings);
                     await updatePanelMessage(interaction, panel);
@@ -1878,7 +1891,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             else if (customId.startsWith('schedule_select_general_')) {
                 const srvNum = parseInt(customId.split('_').pop(), 10);
                 const scheduleId = interaction.values[0];
-                const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1], srvNum);
                 await interaction.deferUpdate();
                 const panel = schedulePanel.buildScheduleGeneralPanel(srvNum, scheduleId, generalSettings);
                 await updatePanelMessage(interaction, panel);
@@ -2021,7 +2034,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 await interaction.deferUpdate();
 
-                const exportResult = await schedulePanel.buildScheduleExport(srvNum, scheduleId, crcon, serverName);
+                const exportResult = scheduleId === '__all__'
+                    ? await schedulePanel.buildAllSchedulesExport(srvNum, crcon, serverName)
+                    : await schedulePanel.buildScheduleExport(srvNum, scheduleId, crcon, serverName);
                 if (!exportResult.success) {
                     await followUpEphemeralAutoDelete(
                         interaction,
@@ -2356,7 +2371,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const labelMap = {
                     teamSwitchCooldown: 'Team Switch Cooldown',
                     idleAutokickTime: 'Idle Autokick Time',
-                    maxPingAutokick: 'Max Ping Autokick'
+                    maxPingAutokick: 'Max Ping Autokick',
+                    mapVoteCooldownVotes: 'Map Vote Cooldown'
                 };
                 if (!labelMap[settingKey]) {
                     await interaction.editReply({ content: 'Unknown setting key.' });
@@ -2366,6 +2382,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 let nextValue;
                 try {
                     nextValue = parseNonNegativeInteger(interaction.fields.getTextInputValue('value'), labelMap[settingKey]);
+                    if (settingKey === 'mapVoteCooldownVotes' && nextValue > 10) {
+                        throw new Error('Map Vote Cooldown must be between 0 and 10 votes.');
+                    }
                 } catch (error) {
                     await interaction.editReply({ content: error.message });
                     return;
@@ -2375,6 +2394,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     teamSwitchCooldown: null,
                     idleAutokickTime: null,
                     maxPingAutokick: null,
+                    mapVoteCooldownVotes: null,
                     ...(schedule.generalSettings || {})
                 };
 
@@ -2389,7 +2409,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return;
                 }
 
-                const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1], srvNum);
                 const panel = schedulePanel.buildScheduleGeneralPanel(srvNum, scheduleId, generalSettings);
                 await editReplyEphemeralAutoDelete(interaction, `Saved **${labelMap[settingKey]}** to this schedule.`, 10000);
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
@@ -2845,7 +2865,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await crcon.setMaxPingAutokick(maxMs);
             }
 
-            const generalSettings = await getLiveGeneralSettings(crcon);
+            const generalSettings = await getLiveGeneralSettings(crcon, serverNum);
             const panel = mapVotePanelService.buildSettingsPanel(service, generalSettings);
             await updatePanelMessage(interaction, panel);
         }

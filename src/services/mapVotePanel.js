@@ -272,7 +272,7 @@ class MapVotePanelService {
                 '• Configure voting thresholds'
             );
 
-            embed.setFooter({ text: 'Seeding Bot • Use the buttons below to manage' });
+            embed.setFooter({ text: 'HLL Map Vote Bot • Use the buttons below to manage' });
 
             // Control buttons - Row 1
             const row1 = new ActionRowBuilder().addComponents(
@@ -636,10 +636,6 @@ class MapVotePanelService {
                 inline: true
             },
             {
-                name: '♻️ Map Vote Cooldown After Playing',
-                value: `${config.excludeRecentMaps ?? 3} vote(s)`
-            },
-            {
                 name: '🧩 Server General Settings',
                 value:
                     `**Team Switch Cooldown:** ${teamSwitchCooldown ?? 'Unknown'} min\n` +
@@ -673,11 +669,6 @@ class MapVotePanelService {
                 .setCustomId('mapvote_set_night_count')
                 .setLabel('Night Maps')
                 .setEmoji('🌙')
-                .setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('mapvote_set_cooldown')
-                .setLabel('Map Cooldown -')
-                .setEmoji('♻️')
                 .setStyle(ButtonStyle.Secondary)
         );
 
