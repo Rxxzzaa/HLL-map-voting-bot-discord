@@ -180,7 +180,7 @@ async function updatePanelMessage(interaction, payload, options = {}) {
     throw new Error('Unable to update interaction panel message.');
 }
 
-async function followUpEphemeralAutoDelete(interaction, content, delayMs = 5000) {
+async function followUpEphemeralAutoDelete(interaction, content, delayMs = 10000) {
     const reply = await interaction.followUp({
         content,
         flags: MessageFlags.Ephemeral
@@ -188,6 +188,19 @@ async function followUpEphemeralAutoDelete(interaction, content, delayMs = 5000)
 
     setTimeout(() => {
         interaction.webhook.deleteMessage(reply.id).catch(() => {
+            // Ignore: message may already be dismissed or expired.
+        });
+    }, delayMs);
+}
+
+async function replyEphemeralAutoDelete(interaction, content, delayMs = 10000) {
+    await interaction.reply({
+        content,
+        flags: MessageFlags.Ephemeral
+    });
+
+    setTimeout(() => {
+        interaction.deleteReply().catch(() => {
             // Ignore: message may already be dismissed or expired.
         });
     }, delayMs);
@@ -1175,7 +1188,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const moduleType = idParts.slice(3, idParts.length - 2).join('_');
                     const schedule = getScheduleById(srvNum, scheduleId);
                     if (!schedule) {
-                        return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
                     }
                     const crcon = crconServices[srvNum] || crconServices[1];
                     const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
@@ -1194,11 +1207,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                                     }
                                 });
                                 if (!updateResult.success) {
-                                    return interaction.reply({ content: `Failed to enable schedule-specific ${moduleType}: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                                    return replyEphemeralAutoDelete(interaction, `Failed to enable schedule-specific ${moduleType}: ${updateResult.error}`);
                                 }
                             } catch (error) {
                                 logger.error(`[Schedule Automods S${srvNum}] Failed to load ${moduleType} config:`, error.message);
-                                return interaction.reply({ content: `Failed to load current ${moduleType} config from server.`, flags: MessageFlags.Ephemeral });
+                                return replyEphemeralAutoDelete(interaction, `Failed to load current ${moduleType} config from server.`);
                             }
                         }
                         draft = JSON.parse(JSON.stringify(baseConfig || {}));
@@ -1234,7 +1247,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const schedule = getScheduleById(srvNum, scheduleId);
 
                     if (!schedule) {
-                        return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
                     }
 
                     const crcon = crconServices[srvNum] || crconServices[1];
@@ -1245,7 +1258,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                             nextModuleConfig = await getLiveAutoModConfig(crcon, moduleType);
                         } catch (error) {
                             logger.error(`[Schedule Automods S${srvNum}] Failed to enable ${moduleType}:`, error.message);
-                            return interaction.reply({ content: `Failed to load current ${moduleType} config from server.`, flags: MessageFlags.Ephemeral });
+                            return replyEphemeralAutoDelete(interaction, `Failed to load current ${moduleType} config from server.`);
                         }
                     }
 
@@ -1256,18 +1269,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                     const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, { automodConfigs: nextConfigs });
                     if (!updateResult.success) {
-                        return interaction.reply({ content: `Failed to update automod module: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, `Failed to update automod module: ${updateResult.error}`);
                     }
 
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
                     await updatePanelMessage(interaction, panel);
-                    await interaction.followUp({
-                        content: nextModuleConfig
+                    await followUpEphemeralAutoDelete(
+                        interaction,
+                        nextModuleConfig
                             ? `${moduleType} is now schedule-specific for this schedule.`
                             : `${moduleType} now uses current server settings for this schedule.`,
-                        flags: MessageFlags.Ephemeral
-                    });
+                        10000
+                    );
                 }
 
                 // Schedule automods - refresh module draft from current server settings
@@ -1278,7 +1292,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const moduleType = idParts.slice(3, idParts.length - 2).join('_').replace('refresh_', '');
                     const crcon = crconServices[srvNum] || crconServices[1];
                     if (!crcon) {
-                        return interaction.reply({ content: 'CRCON service unavailable for this server.', flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, 'CRCON service unavailable for this server.');
                     }
 
                     await interaction.deferUpdate();
@@ -1303,13 +1317,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const moduleType = idParts.slice(3, idParts.length - 2).join('_').replace('commit_', '');
                     const schedule = getScheduleById(srvNum, scheduleId);
                     if (!schedule) {
-                        return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
                     }
 
                     const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
                     const draft = getScheduleAutoModDraftMap(moduleType).get(draftKey);
                     if (!draft) {
-                        return interaction.reply({ content: `No ${moduleType} draft found. Open the panel and edit values first.`, flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, `No ${moduleType} draft found. Open the panel and edit values first.`);
                     }
 
                     const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
@@ -1319,13 +1333,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         }
                     });
                     if (!updateResult.success) {
-                        return interaction.reply({ content: `Failed to save schedule ${moduleType} config: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, `Failed to save schedule ${moduleType} config: ${updateResult.error}`);
                     }
 
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleAutomodModulePanel(srvNum, scheduleId, moduleType, draft);
                     await updatePanelMessage(interaction, panel);
-                    await interaction.followUp({ content: `${moduleType} schedule config saved.`, flags: MessageFlags.Ephemeral });
+                    await followUpEphemeralAutoDelete(interaction, `${moduleType} schedule config saved.`, 10000);
                 }
 
                 // Schedule automods - save current draft directly to this schedule
@@ -1336,13 +1350,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const moduleType = idParts.slice(3, idParts.length - 2).join('_').replace('save_', '');
                     const schedule = getScheduleById(srvNum, scheduleId);
                     if (!schedule) {
-                        return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
                     }
 
                     const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
                     const draft = getScheduleAutoModDraftMap(moduleType).get(draftKey);
                     if (!draft) {
-                        return interaction.reply({ content: `No ${moduleType} draft found. Open the panel and edit values first.`, flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, `No ${moduleType} draft found. Open the panel and edit values first.`);
                     }
 
                     const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
@@ -1352,13 +1366,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         }
                     });
                     if (!updateResult.success) {
-                        return interaction.reply({ content: `Failed to save schedule ${moduleType} config: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, `Failed to save schedule ${moduleType} config: ${updateResult.error}`);
                     }
 
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleAutomodModulePanel(srvNum, scheduleId, moduleType, draft);
                     await updatePanelMessage(interaction, panel);
-                    await interaction.followUp({ content: `${moduleType} saved to this schedule.`, flags: MessageFlags.Ephemeral });
+                    await followUpEphemeralAutoDelete(interaction, `${moduleType} saved to this schedule.`, 10000);
                 }
 
                 // Schedule automods - go back from module panel
@@ -1378,7 +1392,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const scheduleId = idParts[idParts.length - 1];
                     const schedule = getScheduleById(srvNum, scheduleId);
                     if (!schedule) {
-                        return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
                     }
 
                     const modules = ['level', 'no_leader', 'solo_tank'];
@@ -1395,7 +1409,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
                     await updatePanelMessage(interaction, panel);
-                    await interaction.followUp({ content: 'Loaded schedule automod values into drafts.', flags: MessageFlags.Ephemeral });
+                    await followUpEphemeralAutoDelete(interaction, 'Loaded schedule automod values into drafts.', 10000);
                 }
 
                 // Schedule automods - clear all module configs
@@ -1411,7 +1425,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         }
                     });
                     if (!updateResult.success) {
-                        return interaction.reply({ content: `Failed to clear schedule automods: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, `Failed to clear schedule automods: ${updateResult.error}`);
                     }
                     const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
                     scheduleAutoModLevelDrafts.delete(draftKey);
@@ -1421,7 +1435,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
                     await updatePanelMessage(interaction, panel);
-                    await interaction.followUp({ content: 'All modules now use server settings for this schedule.', flags: MessageFlags.Ephemeral });
+                    await followUpEphemeralAutoDelete(interaction, 'All modules now use server settings for this schedule.', 10000);
                 }
 
                 else if (customId.startsWith('schedule_automod_reset_')) {
@@ -1432,7 +1446,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const moduleType = idParts.slice(3, idParts.length - 2).join('_').replace('reset_', '');
                     const schedule = getScheduleById(srvNum, scheduleId);
                     if (!schedule) {
-                        return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
                     }
                     const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
                         automodConfigs: {
@@ -1441,14 +1455,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         }
                     });
                     if (!updateResult.success) {
-                        return interaction.reply({ content: `Failed to reset schedule ${moduleType}: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                        return replyEphemeralAutoDelete(interaction, `Failed to reset schedule ${moduleType}: ${updateResult.error}`);
                     }
                     const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
                     getScheduleAutoModDraftMap(moduleType).delete(draftKey);
                     await interaction.deferUpdate();
                     const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
                     await updatePanelMessage(interaction, panel);
-                    await interaction.followUp({ content: `${moduleType} now uses server settings for this schedule.`, flags: MessageFlags.Ephemeral });
+                    await followUpEphemeralAutoDelete(interaction, `${moduleType} now uses server settings for this schedule.`, 10000);
                 }
 
                 // Manage maps - show schedule selection
@@ -1672,12 +1686,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const fieldDef = fieldDefs?.find(field => field.key === fieldKey);
 
                 if (!fieldDef) {
-                    return interaction.reply({ content: 'Unknown schedule automod field selected.', flags: MessageFlags.Ephemeral });
+                    return replyEphemeralAutoDelete(interaction, 'Unknown schedule automod field selected.');
                 }
 
                 const schedule = getScheduleById(srvNum, scheduleId);
                 if (!schedule) {
-                    return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                    return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
                 }
 
                 const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
@@ -1724,12 +1738,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const roleKey = interaction.values[0];
                 const roleKeys = mapVotePanelService.getLevelRoleKeys();
                 if (!roleKeys.includes(roleKey)) {
-                    return interaction.reply({ content: 'Unknown role selected.', flags: MessageFlags.Ephemeral });
+                    return replyEphemeralAutoDelete(interaction, 'Unknown role selected.');
                 }
 
                 const schedule = getScheduleById(srvNum, scheduleId);
                 if (!schedule) {
-                    return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                    return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
                 }
 
                 const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
