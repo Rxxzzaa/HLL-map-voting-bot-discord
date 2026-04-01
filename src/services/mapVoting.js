@@ -283,6 +283,11 @@ class MapVotingService {
                 isOverride: schedule.isOverride || false,
                 settings: schedule.settings,
                 whitelist: schedule.whitelist, // null = use CRCON whitelist, array = custom
+                automodConfigs: schedule.automodConfigs || {
+                    level: null,
+                    no_leader: null,
+                    solo_tank: null
+                },
                 automodProfiles: schedule.automodProfiles || {
                     level: null,
                     no_leader: null,
@@ -298,6 +303,11 @@ class MapVotingService {
                 isOverride: false,
                 settings: null,
                 whitelist: null,
+                automodConfigs: {
+                    level: null,
+                    no_leader: null,
+                    solo_tank: null
+                },
                 automodProfiles: {
                     level: null,
                     no_leader: null,
@@ -362,49 +372,64 @@ class MapVotingService {
                 `minPlayers=${this.minimumPlayers}, mapsPerVote=${this.mapsPerVote}, nightMaps=${this.nightMapCount}`);
         }
 
-        await this.applyScheduleAutomodProfiles(schedule);
+        await this.applyScheduleAutomods(schedule);
 
         // Clear cache to pick up new whitelist
         this.clearCache();
         this.pendingScheduleTransition = false;
     }
 
-    async applyScheduleAutomodProfiles(schedule) {
-        const profiles = schedule?.automodProfiles;
-        if (!profiles) return;
+    async applyScheduleAutomods(schedule) {
+        const configs = schedule?.automodConfigs || {};
+        const profiles = schedule?.automodProfiles || {};
 
         const applySpec = [
             {
                 type: 'level',
+                directConfig: configs.level,
                 presetId: profiles.level,
                 setter: (cfg) => this.crcon.setAutoModLevelConfig(`schedule:${schedule.scheduleName}`, cfg, false)
             },
             {
                 type: 'no_leader',
+                directConfig: configs.no_leader,
                 presetId: profiles.no_leader,
                 setter: (cfg) => this.crcon.setAutoModNoLeaderConfig(`schedule:${schedule.scheduleName}`, cfg, false)
             },
             {
                 type: 'solo_tank',
+                directConfig: configs.solo_tank,
                 presetId: profiles.solo_tank,
                 setter: (cfg) => this.crcon.setAutoModSoloTankConfig(`schedule:${schedule.scheduleName}`, cfg, false)
             }
         ];
 
         for (const spec of applySpec) {
-            if (!spec.presetId) continue;
+            let configToApply = null;
+            let sourceLabel = null;
 
-            const preset = automodPresetManager.getPresetById(this.serverNum, spec.type, spec.presetId);
-            if (!preset?.config) {
-                logger.warn(`[MapVoting S${this.serverNum}] Missing ${spec.type} preset ${spec.presetId} for schedule ${schedule.scheduleName}`);
+            if (spec.directConfig && typeof spec.directConfig === 'object' && Object.keys(spec.directConfig).length > 0) {
+                configToApply = spec.directConfig;
+                sourceLabel = 'schedule config';
+            } else if (spec.presetId) {
+                const preset = automodPresetManager.getPresetById(this.serverNum, spec.type, spec.presetId);
+                if (!preset?.config) {
+                    logger.warn(`[MapVoting S${this.serverNum}] Missing ${spec.type} preset ${spec.presetId} for schedule ${schedule.scheduleName}`);
+                    continue;
+                }
+                configToApply = preset.config;
+                sourceLabel = `preset "${preset.displayName}"`;
+            }
+
+            if (!configToApply) {
                 continue;
             }
 
             try {
-                await spec.setter(preset.config);
-                logger.info(`[MapVoting S${this.serverNum}] Applied ${spec.type} preset "${preset.displayName}" for schedule "${schedule.scheduleName}"`);
+                await spec.setter(configToApply);
+                logger.info(`[MapVoting S${this.serverNum}] Applied ${spec.type} ${sourceLabel} for schedule "${schedule.scheduleName}"`);
             } catch (error) {
-                logger.error(`[MapVoting S${this.serverNum}] Failed applying ${spec.type} preset "${preset.displayName}": ${error.message}`);
+                logger.error(`[MapVoting S${this.serverNum}] Failed applying ${spec.type} ${sourceLabel}: ${error.message}`);
             }
         }
     }

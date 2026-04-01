@@ -245,7 +245,17 @@ class ScheduleManager {
             isDefault: true,
             isOverride: false,
             settings: null, // Will use current service settings
-            whitelist: null // Will use CRCON whitelist
+            whitelist: null, // Will use CRCON whitelist
+            automodConfigs: {
+                level: null,
+                no_leader: null,
+                solo_tank: null
+            },
+            automodProfiles: {
+                level: null,
+                no_leader: null,
+                solo_tank: null
+            }
         };
     }
 
@@ -268,6 +278,11 @@ class ScheduleManager {
                 nightMapCount: scheduleData.nightMapCount ?? 1
             },
             whitelist: scheduleData.whitelist || null, // null = use CRCON whitelist
+            automodConfigs: scheduleData.automodConfigs || {
+                level: null,
+                no_leader: null,
+                solo_tank: null
+            },
             automodProfiles: scheduleData.automodProfiles || {
                 level: null,
                 no_leader: null,
@@ -307,6 +322,7 @@ class ScheduleManager {
             schedule.settings = { ...schedule.settings, ...updates.settings };
         }
         if (updates.whitelist !== undefined) schedule.whitelist = updates.whitelist;
+        if (updates.automodConfigs !== undefined) schedule.automodConfigs = updates.automodConfigs;
         if (updates.automodProfiles !== undefined) schedule.automodProfiles = updates.automodProfiles;
 
         schedule.updatedAt = new Date().toISOString();
@@ -441,8 +457,12 @@ class ScheduleManager {
             overrideType: schedule.overrideType,
             overrideExpiresAt: schedule.overrideExpiresAt,
             settings: schedule.settings,
-            whitelist: schedule.whitelist
-            ,
+            whitelist: schedule.whitelist,
+            automodConfigs: schedule.automodConfigs || {
+                level: null,
+                no_leader: null,
+                solo_tank: null
+            },
             automodProfiles: schedule.automodProfiles || {
                 level: null,
                 no_leader: null,

@@ -14,8 +14,9 @@ const {
     TextInputStyle
 } = require('discord.js');
 const scheduleManager = require('./scheduleManager');
-const automodPresetManager = require('./automodPresetManager');
+const { MapVotePanelService } = require('./mapVotePanel');
 const logger = require('../utils/logger');
+const automodPanelHelper = new MapVotePanelService();
 
 class SchedulePanelService {
     /**
@@ -88,7 +89,7 @@ class SchedulePanelService {
             'Configure time-based map pools with different settings for different times of day.\n\n' +
             '**How it works:**\n' +
             '• Each schedule defines a time range and days\n' +
-            '• Active schedule controls whitelist & settings\n' +
+            '• Active schedule controls whitelist, settings, and automods\n' +
             '• Changes apply after current match ends'
         );
 
@@ -150,7 +151,7 @@ class SchedulePanelService {
         const row3 = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`schedule_automods_${serverNum}`)
-                .setLabel('Attach Automods')
+                .setLabel('Edit Automods')
                 .setEmoji('🤖')
                 .setStyle(ButtonStyle.Secondary)
                 .setDisabled(schedules.length === 0)
@@ -298,14 +299,14 @@ class SchedulePanelService {
     }
 
     /**
-     * Build schedule selection for automod profile attachment
+     * Build schedule selection for automod editing
      */
     buildScheduleAutomodSelectPanel(serverNum) {
         const schedules = scheduleManager.getSchedules(serverNum);
 
         const embed = new EmbedBuilder()
             .setTitle('🤖 Select Schedule for Automods')
-            .setDescription('Choose which schedule should have saved automod configs attached.')
+            .setDescription('Choose which schedule should have automod settings edited.')
             .setColor(0x5865F2);
 
         if (schedules.length === 0) {
@@ -345,7 +346,7 @@ class SchedulePanelService {
     }
 
     /**
-     * Build automod attachment panel for a specific schedule
+     * Build automod editing panel for a specific schedule
      */
     buildScheduleAutomodAttachPanel(serverNum, scheduleId) {
         const schedules = scheduleManager.getSchedules(serverNum);
@@ -354,69 +355,51 @@ class SchedulePanelService {
             return { content: 'Schedule not found.' };
         }
 
-        const attachments = schedule.automodProfiles || {
+        const automodConfigs = schedule.automodConfigs || {
             level: null,
             no_leader: null,
             solo_tank: null
         };
 
-        const levelPresets = automodPresetManager.getPresets(serverNum, 'level');
-        const noLeaderPresets = automodPresetManager.getPresets(serverNum, 'no_leader');
-        const soloTankPresets = automodPresetManager.getPresets(serverNum, 'solo_tank');
-
-        const findName = (list, id) => list.find(item => item.id === id)?.displayName || 'None';
+        const status = (cfg) => cfg && typeof cfg === 'object' ? 'Custom' : 'Not Set';
 
         const embed = new EmbedBuilder()
-            .setTitle(`🤖 Attach Automods - ${schedule.name}`)
+            .setTitle(`🤖 Edit Automods - ${schedule.name}`)
             .setColor(0x5865F2)
             .setDescription(
-                'Attach saved automod configs to this schedule.\n' +
-                'When the schedule becomes active, attached presets are applied automatically.\n\n' +
-                `**Level:** ${findName(levelPresets, attachments.level)}\n` +
-                `**No Leader:** ${findName(noLeaderPresets, attachments.no_leader)}\n` +
-                `**No Solo Tank:** ${findName(soloTankPresets, attachments.solo_tank)}`
+                'Edit schedule-specific automod settings.\n' +
+                'These settings are applied automatically when this schedule becomes active.\n\n' +
+                `**Level:** ${status(automodConfigs.level)}\n` +
+                `**No Leader:** ${status(automodConfigs.no_leader)}\n` +
+                `**No Solo Tank:** ${status(automodConfigs.solo_tank)}`
             );
 
-        const withNone = (items, type, attachedId) => {
-            const base = [
-                {
-                    label: `None (${type})`,
-                    description: 'Do not apply a preset for this automod',
-                    value: 'none'
-                }
-            ];
-            const mapped = items.slice(0, 24).map(item => ({
-                label: item.displayName.substring(0, 100),
-                description: (item.name || '').substring(0, 100) || 'Saved preset',
-                value: item.id,
-                default: item.id === attachedId
-            }));
-
-            if (attachedId === null || attachedId === undefined) {
-                base[0].default = true;
-            }
-            return [...base, ...mapped];
-        };
-
-        const levelRow = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId(`schedule_attach_level_${serverNum}_${scheduleId}`)
-                .setPlaceholder('Attach Level preset...')
-                .addOptions(withNone(levelPresets, 'Level', attachments.level))
+        const editRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_edit_level_${serverNum}_${scheduleId}`)
+                .setLabel('Edit Level')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_edit_no_leader_${serverNum}_${scheduleId}`)
+                .setLabel('Edit No Leader')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_edit_solo_tank_${serverNum}_${scheduleId}`)
+                .setLabel('Edit No Solo Tank')
+                .setStyle(ButtonStyle.Secondary)
         );
 
-        const noLeaderRow = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId(`schedule_attach_no_leader_${serverNum}_${scheduleId}`)
-                .setPlaceholder('Attach No Leader preset...')
-                .addOptions(withNone(noLeaderPresets, 'No Leader', attachments.no_leader))
-        );
-
-        const soloTankRow = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId(`schedule_attach_solo_tank_${serverNum}_${scheduleId}`)
-                .setPlaceholder('Attach No Solo Tank preset...')
-                .addOptions(withNone(soloTankPresets, 'No Solo Tank', attachments.solo_tank))
+        const utilityRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_load_current_${serverNum}_${scheduleId}`)
+                .setLabel('Load Current Server')
+                .setEmoji('📥')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_clear_${serverNum}_${scheduleId}`)
+                .setLabel('Clear Automods')
+                .setEmoji('🧹')
+                .setStyle(ButtonStyle.Danger)
         );
 
         const backRow = new ActionRowBuilder().addComponents(
@@ -427,7 +410,171 @@ class SchedulePanelService {
                 .setStyle(ButtonStyle.Secondary)
         );
 
-        return { embeds: [embed], components: [levelRow, noLeaderRow, soloTankRow, backRow] };
+        return { embeds: [embed], components: [editRow, utilityRow, backRow] };
+    }
+
+    getDefaultLevelThresholds() {
+        return {
+            officer: { label: 'Officer', min_level: 30, min_players: 75 },
+            spotter: { label: 'Reco (spotter)', min_level: 30, min_players: 75 },
+            armycommander: { label: 'Commander', min_level: 50, min_players: 75 },
+            tankcommander: { label: 'Tank Commander', min_level: 30, min_players: 75 }
+        };
+    }
+
+    getScheduleAutomodConfig(serverNum, scheduleId, moduleType) {
+        const schedules = scheduleManager.getSchedules(serverNum);
+        const schedule = schedules.find(item => item.id === scheduleId);
+        if (!schedule) return null;
+
+        const automodConfigs = schedule.automodConfigs || {};
+        const existing = automodConfigs[moduleType];
+        if (existing && typeof existing === 'object') {
+            if (moduleType === 'level') {
+                return {
+                    ...existing,
+                    level_thresholds: {
+                        ...this.getDefaultLevelThresholds(),
+                        ...(existing.level_thresholds || {})
+                    }
+                };
+            }
+            return { ...existing };
+        }
+
+        if (moduleType === 'level') {
+            return { level_thresholds: this.getDefaultLevelThresholds() };
+        }
+        return {};
+    }
+
+    buildScheduleAutomodModulePanel(serverNum, scheduleId, moduleType) {
+        const config = this.getScheduleAutomodConfig(serverNum, scheduleId, moduleType);
+        if (!config) {
+            return { content: 'Schedule not found.' };
+        }
+
+        let fieldDefs;
+        let title;
+        let color;
+        let table;
+        let placeholder;
+
+        if (moduleType === 'level') {
+            fieldDefs = automodPanelHelper.getLevelGeneralFieldDefinitions();
+            title = '📈 Edit Level (General)';
+            color = 0x8E44AD;
+            table = automodPanelHelper.buildLevelGeneralConfigTable(config);
+            placeholder = 'Select a general field to edit...';
+        } else if (moduleType === 'no_leader') {
+            fieldDefs = automodPanelHelper.getNoLeaderFieldDefinitions();
+            title = '🧭 Edit No Leader';
+            color = 0x1ABC9C;
+            table = automodPanelHelper.buildNoLeaderConfigTable(config);
+            placeholder = 'Select a field to edit...';
+        } else {
+            fieldDefs = automodPanelHelper.getSoloTankFieldDefinitions();
+            title = '🚫 Edit No Solo Tank';
+            color = 0xE67E22;
+            table = automodPanelHelper.buildSoloTankConfigTable(config);
+            placeholder = 'Select a field to edit...';
+        }
+
+        const options = fieldDefs.map(field => ({
+            label: field.label.substring(0, 100),
+            value: field.key,
+            description: automodPanelHelper.formatAutoModValueForSelect(config[field.key], field.type)
+        }));
+
+        const embed = new EmbedBuilder()
+            .setTitle(`${title} - Schedule`)
+            .setColor(color)
+            .setDescription(
+                `Schedule ID: **${scheduleId}**\n` +
+                'Pick a field from dropdown to edit it.\n' +
+                'Changes are saved directly to this schedule.\n\n' +
+                table
+            );
+
+        const selectRows = [];
+        const optionChunks = [];
+        for (let i = 0; i < options.length; i += 25) {
+            optionChunks.push(options.slice(i, i + 25));
+        }
+        optionChunks.forEach((chunk, index) => {
+            const select = new StringSelectMenuBuilder()
+                .setCustomId(`schedule_automod_field_${moduleType}_${index}_${serverNum}_${scheduleId}`)
+                .setPlaceholder(optionChunks.length > 1 ? `${placeholder} (${index + 1}/${optionChunks.length})` : placeholder)
+                .addOptions(chunk);
+            selectRows.push(new ActionRowBuilder().addComponents(select));
+        });
+
+        const actionButtons = [
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_reset_${moduleType}_${serverNum}_${scheduleId}`)
+                .setLabel('Reset Module')
+                .setEmoji('♻️')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_edit_${serverNum}_${scheduleId}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        ];
+
+        if (moduleType === 'level') {
+            actionButtons.splice(1, 0,
+                new ButtonBuilder()
+                    .setCustomId(`schedule_automod_roles_${serverNum}_${scheduleId}`)
+                    .setLabel('Edit Role Levels')
+                    .setStyle(ButtonStyle.Primary)
+            );
+        }
+
+        const actionRow = new ActionRowBuilder().addComponents(actionButtons);
+        return { embeds: [embed], components: [...selectRows, actionRow] };
+    }
+
+    buildScheduleAutomodRolesPanel(serverNum, scheduleId) {
+        const config = this.getScheduleAutomodConfig(serverNum, scheduleId, 'level');
+        if (!config) {
+            return { content: 'Schedule not found.' };
+        }
+
+        const options = automodPanelHelper.getLevelRoleKeys().map(role => {
+            const value = config.level_thresholds?.[role] || {};
+            return {
+                label: role.substring(0, 100),
+                value: role,
+                description: `L=${value.min_level ?? 0}, P=${value.min_players ?? 0}, ${String(value.label || role).slice(0, 45)}`
+            };
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle('📊 Edit Level Role Thresholds - Schedule')
+            .setColor(0x2C3E50)
+            .setDescription(
+                `Schedule ID: **${scheduleId}**\n` +
+                'Select a role threshold to edit label/min_level/min_players.\n\n' +
+                automodPanelHelper.buildLevelRolesTable(config.level_thresholds || {})
+            );
+
+        const selectRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`schedule_automod_role_select_${serverNum}_${scheduleId}`)
+                .setPlaceholder('Select a role threshold to edit...')
+                .addOptions(options)
+        );
+
+        const backRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_automod_edit_level_${serverNum}_${scheduleId}`)
+                .setLabel('Back to Level')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [selectRow, backRow] };
     }
 
     /**

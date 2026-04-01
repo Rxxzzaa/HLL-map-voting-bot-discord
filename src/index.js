@@ -258,6 +258,24 @@ function getDefaultLevelThresholds() {
     };
 }
 
+function getScheduleAutomodFieldDefinitions(moduleType) {
+    if (moduleType === 'level') {
+        return mapVotePanelService.getLevelGeneralFieldDefinitions();
+    }
+    if (moduleType === 'no_leader') {
+        return mapVotePanelService.getNoLeaderFieldDefinitions();
+    }
+    if (moduleType === 'solo_tank') {
+        return mapVotePanelService.getSoloTankFieldDefinitions();
+    }
+    return null;
+}
+
+function getScheduleById(serverNum, scheduleId) {
+    const schedules = scheduleManager.getSchedules(serverNum);
+    return schedules.find(item => item.id === scheduleId) || null;
+}
+
 // Ready event
 client.once(Events.ClientReady, async () => {
     isDiscordReady = true;
@@ -1110,6 +1128,137 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await interaction.followUp({ content: `Days set to ${preset}.`, flags: MessageFlags.Ephemeral });
                 }
 
+                // Schedule automods - open selected schedule editor
+                else if (customId.startsWith('schedule_automod_edit_') && !customId.startsWith('schedule_automod_edit_level_') && !customId.startsWith('schedule_automod_edit_no_leader_') && !customId.startsWith('schedule_automod_edit_solo_tank_')) {
+                    const idParts = customId.split('_');
+                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                    const scheduleId = idParts[idParts.length - 1];
+                    await interaction.deferUpdate();
+                    const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                // Schedule automods - edit module
+                else if (customId.startsWith('schedule_automod_edit_level_') || customId.startsWith('schedule_automod_edit_no_leader_') || customId.startsWith('schedule_automod_edit_solo_tank_')) {
+                    const idParts = customId.split('_');
+                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                    const scheduleId = idParts[idParts.length - 1];
+                    const moduleType = idParts.slice(3, idParts.length - 2).join('_');
+
+                    await interaction.deferUpdate();
+                    const panel = schedulePanel.buildScheduleAutomodModulePanel(srvNum, scheduleId, moduleType);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                // Schedule automods - edit level role thresholds
+                else if (customId.startsWith('schedule_automod_roles_')) {
+                    const idParts = customId.split('_');
+                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                    const scheduleId = idParts[idParts.length - 1];
+                    await interaction.deferUpdate();
+                    const panel = schedulePanel.buildScheduleAutomodRolesPanel(srvNum, scheduleId);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                // Schedule automods - reset module config
+                else if (customId.startsWith('schedule_automod_reset_')) {
+                    const idParts = customId.split('_');
+                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                    const scheduleId = idParts[idParts.length - 1];
+                    const moduleType = idParts.slice(3, idParts.length - 2).join('_');
+                    const schedule = getScheduleById(srvNum, scheduleId);
+
+                    if (!schedule) {
+                        return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                    }
+
+                    const currentConfigs = schedule.automodConfigs || {};
+                    const nextConfigs = {
+                        ...currentConfigs,
+                        [moduleType]: null
+                    };
+
+                    const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, { automodConfigs: nextConfigs });
+                    if (!updateResult.success) {
+                        return interaction.reply({ content: `Failed to reset automod module: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                    }
+
+                    await interaction.deferUpdate();
+                    const panel = schedulePanel.buildScheduleAutomodModulePanel(srvNum, scheduleId, moduleType);
+                    await updatePanelMessage(interaction, panel);
+                    await interaction.followUp({ content: `${moduleType} config reset for this schedule.`, flags: MessageFlags.Ephemeral });
+                }
+
+                // Schedule automods - clear all module configs
+                else if (customId.startsWith('schedule_automod_clear_')) {
+                    const idParts = customId.split('_');
+                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                    const scheduleId = idParts[idParts.length - 1];
+
+                    const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
+                        automodConfigs: {
+                            level: null,
+                            no_leader: null,
+                            solo_tank: null
+                        }
+                    });
+                    if (!updateResult.success) {
+                        return interaction.reply({ content: `Failed to clear schedule automods: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                    }
+
+                    await interaction.deferUpdate();
+                    const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
+                    await updatePanelMessage(interaction, panel);
+                    await interaction.followUp({ content: 'Cleared schedule-specific automod settings.', flags: MessageFlags.Ephemeral });
+                }
+
+                // Schedule automods - load current live automod settings from CRCON
+                else if (customId.startsWith('schedule_automod_load_current_')) {
+                    const idParts = customId.split('_');
+                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                    const scheduleId = idParts[idParts.length - 1];
+                    const crcon = crconServices[srvNum] || crconServices[1];
+                    if (!crcon) {
+                        return interaction.reply({ content: 'CRCON service unavailable for this server.', flags: MessageFlags.Ephemeral });
+                    }
+
+                    await interaction.deferUpdate();
+                    let levelCfg = null;
+                    let noLeaderCfg = null;
+                    let soloTankCfg = null;
+
+                    try {
+                        const [levelRes, noLeaderRes, soloTankRes] = await Promise.all([
+                            crcon.getAutoModLevelConfig(),
+                            crcon.getAutoModNoLeaderConfig(),
+                            crcon.getAutoModSoloTankConfig()
+                        ]);
+                        levelCfg = levelRes?.result || null;
+                        noLeaderCfg = noLeaderRes?.result || null;
+                        soloTankCfg = soloTankRes?.result || null;
+                    } catch (error) {
+                        logger.error(`[Schedule Automods S${srvNum}] Failed to load current automods from CRCON:`, error.message);
+                        await interaction.followUp({ content: 'Failed to load current automods from CRCON.', flags: MessageFlags.Ephemeral });
+                        return;
+                    }
+
+                    const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
+                        automodConfigs: {
+                            level: levelCfg,
+                            no_leader: noLeaderCfg,
+                            solo_tank: soloTankCfg
+                        }
+                    });
+                    if (!updateResult.success) {
+                        await interaction.followUp({ content: `Failed to save schedule automods: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                        return;
+                    }
+
+                    const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
+                    await updatePanelMessage(interaction, panel);
+                    await interaction.followUp({ content: 'Loaded current server automod settings into this schedule.', flags: MessageFlags.Ephemeral });
+                }
+
                 // Manage maps - show schedule selection
                 else if (customId.startsWith('schedule_maps_')) {
                     await interaction.deferUpdate();
@@ -1118,7 +1267,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await updatePanelMessage(interaction, panel);
                 }
 
-                // Automod attachments - show schedule selection
+                // Schedule automods - show schedule selection
                 else if (customId.startsWith('schedule_automods_')) {
                     await interaction.deferUpdate();
                     const srvNum = parseInt(customId.split('_').pop());
@@ -1311,7 +1460,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await updatePanelMessage(interaction, panel);
             }
 
-            // Select schedule for automod attachments
+            // Select schedule for automod editing
             else if (customId.startsWith('schedule_select_automods_')) {
                 const srvNum = parseInt(customId.split('_').pop(), 10);
                 const scheduleId = interaction.values[0];
@@ -1320,79 +1469,108 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await updatePanelMessage(interaction, panel);
             }
 
-            // Attach level preset to schedule
-            else if (customId.startsWith('schedule_attach_level_')) {
-                const parts = customId.split('_');
-                const srvNum = parseInt(parts[3], 10);
-                const scheduleId = parts[4];
-                const presetId = interaction.values[0] === 'none' ? null : interaction.values[0];
+            // Select schedule automod module field to edit
+            else if (customId.startsWith('schedule_automod_field_')) {
+                const idParts = customId.split('_');
+                const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                const scheduleId = idParts[idParts.length - 1];
+                const moduleType = idParts.slice(3, idParts.length - 3).join('_');
+                const fieldKey = interaction.values[0];
+                const fieldDefs = getScheduleAutomodFieldDefinitions(moduleType);
+                const fieldDef = fieldDefs?.find(field => field.key === fieldKey);
 
-                const schedules = scheduleManager.getSchedules(srvNum);
-                const schedule = schedules.find(item => item.id === scheduleId);
+                if (!fieldDef) {
+                    return interaction.reply({ content: 'Unknown schedule automod field selected.', flags: MessageFlags.Ephemeral });
+                }
+
+                const schedule = getScheduleById(srvNum, scheduleId);
                 if (!schedule) {
                     return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
                 }
 
-                const attachments = {
-                    level: presetId,
-                    no_leader: schedule.automodProfiles?.no_leader || null,
-                    solo_tank: schedule.automodProfiles?.solo_tank || null
-                };
-                scheduleManager.updateSchedule(srvNum, scheduleId, { automodProfiles: attachments });
+                const moduleConfig = schedule.automodConfigs?.[moduleType] || {};
+                let currentValue = moduleConfig[fieldKey];
+                if (fieldDef.type === 'string_array') {
+                    currentValue = Array.isArray(currentValue) ? currentValue.join(', ') : '';
+                } else if (currentValue === null || currentValue === undefined) {
+                    currentValue = '';
+                } else {
+                    currentValue = String(currentValue);
+                }
 
-                await interaction.deferUpdate();
-                const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
-                await updatePanelMessage(interaction, panel);
+                const modal = new ModalBuilder()
+                    .setCustomId(`schedule_automod_field_modal_${moduleType}_${srvNum}_${scheduleId}_${fieldKey}`)
+                    .setTitle(`Schedule ${moduleType} - ${fieldDef.label}`)
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('value')
+                                .setLabel(`${fieldDef.label} (${fieldDef.type})`)
+                                .setStyle(fieldDef.multiline ? TextInputStyle.Paragraph : TextInputStyle.Short)
+                                .setRequired(false)
+                                .setValue(currentValue.substring(0, 4000))
+                        )
+                    );
+
+                await interaction.showModal(modal);
             }
 
-            // Attach no leader preset to schedule
-            else if (customId.startsWith('schedule_attach_no_leader_')) {
-                const parts = customId.split('_');
-                const srvNum = parseInt(parts[4], 10);
-                const scheduleId = parts[5];
-                const presetId = interaction.values[0] === 'none' ? null : interaction.values[0];
+            // Select schedule level role threshold to edit
+            else if (customId.startsWith('schedule_automod_role_select_')) {
+                const idParts = customId.split('_');
+                const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                const scheduleId = idParts[idParts.length - 1];
+                const roleKey = interaction.values[0];
+                const roleKeys = mapVotePanelService.getLevelRoleKeys();
+                if (!roleKeys.includes(roleKey)) {
+                    return interaction.reply({ content: 'Unknown role selected.', flags: MessageFlags.Ephemeral });
+                }
 
-                const schedules = scheduleManager.getSchedules(srvNum);
-                const schedule = schedules.find(item => item.id === scheduleId);
+                const schedule = getScheduleById(srvNum, scheduleId);
                 if (!schedule) {
                     return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
                 }
 
-                const attachments = {
-                    level: schedule.automodProfiles?.level || null,
-                    no_leader: presetId,
-                    solo_tank: schedule.automodProfiles?.solo_tank || null
+                const levelCfg = {
+                    ...(schedule.automodConfigs?.level || {}),
+                    level_thresholds: {
+                        ...getDefaultLevelThresholds(),
+                        ...(schedule.automodConfigs?.level?.level_thresholds || {})
+                    }
                 };
-                scheduleManager.updateSchedule(srvNum, scheduleId, { automodProfiles: attachments });
+                const roleConfig = levelCfg.level_thresholds?.[roleKey] || getDefaultLevelThresholds()[roleKey];
 
-                await interaction.deferUpdate();
-                const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
-                await updatePanelMessage(interaction, panel);
-            }
+                const modal = new ModalBuilder()
+                    .setCustomId(`schedule_automod_role_modal_${srvNum}_${scheduleId}_${roleKey}`)
+                    .setTitle(`Schedule Level Role - ${roleKey}`)
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('label')
+                                .setLabel('Label')
+                                .setStyle(TextInputStyle.Short)
+                                .setRequired(true)
+                                .setValue(String(roleConfig?.label || roleKey).substring(0, 100))
+                        ),
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('min_level')
+                                .setLabel('Min Level')
+                                .setStyle(TextInputStyle.Short)
+                                .setRequired(true)
+                                .setValue(String(roleConfig?.min_level ?? 0))
+                        ),
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('min_players')
+                                .setLabel('Min Players')
+                                .setStyle(TextInputStyle.Short)
+                                .setRequired(true)
+                                .setValue(String(roleConfig?.min_players ?? 0))
+                        )
+                    );
 
-            // Attach solo tank preset to schedule
-            else if (customId.startsWith('schedule_attach_solo_tank_')) {
-                const parts = customId.split('_');
-                const srvNum = parseInt(parts[4], 10);
-                const scheduleId = parts[5];
-                const presetId = interaction.values[0] === 'none' ? null : interaction.values[0];
-
-                const schedules = scheduleManager.getSchedules(srvNum);
-                const schedule = schedules.find(item => item.id === scheduleId);
-                if (!schedule) {
-                    return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
-                }
-
-                const attachments = {
-                    level: schedule.automodProfiles?.level || null,
-                    no_leader: schedule.automodProfiles?.no_leader || null,
-                    solo_tank: presetId
-                };
-                scheduleManager.updateSchedule(srvNum, scheduleId, { automodProfiles: attachments });
-
-                await interaction.deferUpdate();
-                const panel = schedulePanel.buildScheduleAutomodAttachPanel(srvNum, scheduleId);
-                await updatePanelMessage(interaction, panel);
+                await interaction.showModal(modal);
             }
 
             // Select schedule for export
@@ -1728,6 +1906,164 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 scheduleManager.setOverride(srvNum, scheduleId, 'hours', hours);
                 await interaction.editReply({ content: `Override set for ${hours} hour(s).` });
                 const panel = schedulePanel.buildSchedulePanel(srvNum);
+                await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                return;
+            }
+
+            if (customId.startsWith('schedule_automod_field_modal_')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const idParts = customId.replace('schedule_automod_field_modal_', '').split('_');
+                const fieldKey = idParts[idParts.length - 1];
+                const scheduleId = idParts[idParts.length - 2];
+                const srvNum = parseInt(idParts[idParts.length - 3], 10);
+                const moduleType = idParts.slice(0, idParts.length - 3).join('_');
+
+                const fieldDefs = getScheduleAutomodFieldDefinitions(moduleType);
+                const fieldDef = fieldDefs?.find(field => field.key === fieldKey);
+                if (!fieldDef) {
+                    await interaction.editReply({ content: 'Unknown schedule automod field.' });
+                    return;
+                }
+
+                const schedule = getScheduleById(srvNum, scheduleId);
+                if (!schedule) {
+                    await interaction.editReply({ content: 'Schedule not found.' });
+                    return;
+                }
+
+                let parsedValue;
+                try {
+                    const rawValue = interaction.fields.getTextInputValue('value');
+                    parsedValue = parseAutoModValue(rawValue, fieldDef.type);
+                } catch (error) {
+                    await interaction.editReply({ content: `Invalid value: ${error.message}` });
+                    return;
+                }
+
+                const currentConfigs = schedule.automodConfigs || {};
+                let currentModule = currentConfigs[moduleType] || {};
+
+                // If schedule has no stored module config yet, seed from live CRCON config.
+                if (!currentModule || Object.keys(currentModule).length === 0) {
+                    const crcon = crconServices[srvNum] || crconServices[1];
+                    if (crcon) {
+                        try {
+                            if (moduleType === 'level') {
+                                currentModule = (await crcon.getAutoModLevelConfig())?.result || {};
+                            } else if (moduleType === 'no_leader') {
+                                currentModule = (await crcon.getAutoModNoLeaderConfig())?.result || {};
+                            } else if (moduleType === 'solo_tank') {
+                                currentModule = (await crcon.getAutoModSoloTankConfig())?.result || {};
+                            }
+                        } catch (error) {
+                            logger.warn(`[Schedule Automods S${srvNum}] Could not seed ${moduleType} from live CRCON config: ${error.message}`);
+                        }
+                    }
+                }
+
+                const nextModule = { ...currentModule, [fieldKey]: parsedValue };
+                if (moduleType === 'level') {
+                    nextModule.level_thresholds = {
+                        ...getDefaultLevelThresholds(),
+                        ...(nextModule.level_thresholds || {})
+                    };
+                }
+
+                const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
+                    automodConfigs: {
+                        ...currentConfigs,
+                        [moduleType]: nextModule
+                    }
+                });
+
+                if (!updateResult.success) {
+                    await interaction.editReply({ content: `Failed to save schedule automod field: ${updateResult.error}` });
+                    return;
+                }
+
+                const panel = schedulePanel.buildScheduleAutomodModulePanel(srvNum, scheduleId, moduleType);
+                await interaction.editReply({ content: `Updated **${fieldDef.label}** for schedule automods.` });
+                await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                return;
+            }
+
+            if (customId.startsWith('schedule_automod_role_modal_')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const idParts = customId.replace('schedule_automod_role_modal_', '').split('_');
+                const roleKey = idParts[idParts.length - 1];
+                const scheduleId = idParts[idParts.length - 2];
+                const srvNum = parseInt(idParts[idParts.length - 3], 10);
+
+                const roleKeys = mapVotePanelService.getLevelRoleKeys();
+                if (!roleKeys.includes(roleKey)) {
+                    await interaction.editReply({ content: 'Unknown role submitted.' });
+                    return;
+                }
+
+                const schedule = getScheduleById(srvNum, scheduleId);
+                if (!schedule) {
+                    await interaction.editReply({ content: 'Schedule not found.' });
+                    return;
+                }
+
+                const label = interaction.fields.getTextInputValue('label').trim();
+                if (!label) {
+                    await interaction.editReply({ content: 'Label cannot be empty.' });
+                    return;
+                }
+
+                let minLevel;
+                let minPlayers;
+                try {
+                    minLevel = parseAutoModValue(interaction.fields.getTextInputValue('min_level'), 'integer');
+                    minPlayers = parseAutoModValue(interaction.fields.getTextInputValue('min_players'), 'integer');
+                } catch (error) {
+                    await interaction.editReply({ content: `Invalid role threshold value: ${error.message}` });
+                    return;
+                }
+
+                const currentConfigs = schedule.automodConfigs || {};
+                let baseLevel = currentConfigs.level || {};
+                if (!baseLevel || Object.keys(baseLevel).length === 0) {
+                    const crcon = crconServices[srvNum] || crconServices[1];
+                    if (crcon) {
+                        try {
+                            baseLevel = (await crcon.getAutoModLevelConfig())?.result || {};
+                        } catch (error) {
+                            logger.warn(`[Schedule Automods S${srvNum}] Could not seed level config from live CRCON config: ${error.message}`);
+                        }
+                    }
+                }
+
+                const levelCfg = {
+                    ...baseLevel,
+                    level_thresholds: {
+                        ...getDefaultLevelThresholds(),
+                        ...(baseLevel.level_thresholds || {})
+                    }
+                };
+                levelCfg.level_thresholds[roleKey] = {
+                    label,
+                    min_level: minLevel,
+                    min_players: minPlayers
+                };
+
+                const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
+                    automodConfigs: {
+                        ...currentConfigs,
+                        level: levelCfg
+                    }
+                });
+
+                if (!updateResult.success) {
+                    await interaction.editReply({ content: `Failed to save schedule role threshold: ${updateResult.error}` });
+                    return;
+                }
+
+                const panel = schedulePanel.buildScheduleAutomodRolesPanel(srvNum, scheduleId);
+                await interaction.editReply({ content: `Updated role threshold **${roleKey}** for schedule automods.` });
                 await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
                 return;
             }
