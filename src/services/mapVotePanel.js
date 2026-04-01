@@ -604,8 +604,11 @@ class MapVotePanelService {
     /**
      * Build settings panel
      */
-    buildSettingsPanel(mapVotingService) {
+    buildSettingsPanel(mapVotingService, generalSettings = {}) {
         const config = mapVotingService.getConfig();
+        const teamSwitchCooldown = generalSettings.teamSwitchCooldown;
+        const idleAutokickTime = generalSettings.idleAutokickTime;
+        const maxPingAutokick = generalSettings.maxPingAutokick;
 
         const embed = new EmbedBuilder()
             .setTitle('⚙️ Map Vote Settings')
@@ -635,6 +638,13 @@ class MapVotePanelService {
             {
                 name: '♻️ Map Vote Cooldown After Playing',
                 value: `${config.excludeRecentMaps ?? 3} vote(s)`
+            },
+            {
+                name: '🧩 Server General Settings',
+                value:
+                    `**Team Switch Cooldown:** ${teamSwitchCooldown ?? 'Unknown'} min\n` +
+                    `**Idle Autokick Time:** ${idleAutokickTime ?? 'Unknown'} min\n` +
+                    `**Max Ping Autokick:** ${maxPingAutokick ?? 'Unknown'} ms`
             }
         );
 
@@ -672,6 +682,21 @@ class MapVotePanelService {
         );
 
         const row2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('mapvote_set_team_switch_cooldown')
+                .setLabel('Team Switch')
+                .setEmoji('🔁')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('mapvote_set_idle_autokick')
+                .setLabel('Idle Kick')
+                .setEmoji('🛌')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('mapvote_set_max_ping')
+                .setLabel('Max Ping')
+                .setEmoji('📶')
+                .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('mapvote_back')
                 .setLabel('Back to Main')

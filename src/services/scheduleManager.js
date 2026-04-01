@@ -32,6 +32,14 @@ const DAY_PRESETS = {
     weekend: ['sat', 'sun']
 };
 
+function createDefaultScheduleGeneralSettings() {
+    return {
+        teamSwitchCooldown: null,
+        idleAutokickTime: null,
+        maxPingAutokick: null
+    };
+}
+
 class ScheduleManager {
     constructor() {
         this.data = this.loadData();
@@ -247,6 +255,7 @@ class ScheduleManager {
             isOverride: false,
             settings: null, // Will use current service settings
             whitelist: null, // Will use CRCON whitelist
+            generalSettings: createDefaultScheduleGeneralSettings(),
             automodConfigs: {
                 level: null,
                 no_leader: null,
@@ -279,6 +288,10 @@ class ScheduleManager {
                 nightMapCount: scheduleData.nightMapCount ?? 1
             },
             whitelist: scheduleData.whitelist || null, // null = use CRCON whitelist
+            generalSettings: {
+                ...createDefaultScheduleGeneralSettings(),
+                ...(scheduleData.generalSettings || {})
+            },
             automodConfigs: scheduleData.automodConfigs || {
                 level: null,
                 no_leader: null,
@@ -323,6 +336,12 @@ class ScheduleManager {
             schedule.settings = { ...schedule.settings, ...updates.settings };
         }
         if (updates.whitelist !== undefined) schedule.whitelist = updates.whitelist;
+        if (updates.generalSettings !== undefined) {
+            schedule.generalSettings = {
+                ...createDefaultScheduleGeneralSettings(),
+                ...(updates.generalSettings || {})
+            };
+        }
         if (updates.automodConfigs !== undefined) schedule.automodConfigs = updates.automodConfigs;
         if (updates.automodProfiles !== undefined) schedule.automodProfiles = updates.automodProfiles;
 
@@ -459,6 +478,10 @@ class ScheduleManager {
             overrideExpiresAt: schedule.overrideExpiresAt,
             settings: schedule.settings,
             whitelist: schedule.whitelist,
+            generalSettings: {
+                ...createDefaultScheduleGeneralSettings(),
+                ...(schedule.generalSettings || {})
+            },
             automodConfigs: schedule.automodConfigs || {
                 level: null,
                 no_leader: null,

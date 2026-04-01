@@ -373,6 +373,7 @@ class MapVotingService {
         }
 
         await this.applyScheduleAutomods(schedule);
+        await this.applyScheduleGeneralSettings(schedule);
 
         // Clear cache to pick up new whitelist
         this.clearCache();
@@ -430,6 +431,44 @@ class MapVotingService {
                 logger.info(`[MapVoting S${this.serverNum}] Applied ${spec.type} ${sourceLabel} for schedule "${schedule.scheduleName}"`);
             } catch (error) {
                 logger.error(`[MapVoting S${this.serverNum}] Failed applying ${spec.type} ${sourceLabel}: ${error.message}`);
+            }
+        }
+    }
+
+    async applyScheduleGeneralSettings(schedule) {
+        const generalSettings = schedule?.generalSettings || {};
+        const applySpec = [
+            {
+                key: 'teamSwitchCooldown',
+                value: generalSettings.teamSwitchCooldown,
+                setter: (v) => this.crcon.setTeamSwitchCooldown(v)
+            },
+            {
+                key: 'idleAutokickTime',
+                value: generalSettings.idleAutokickTime,
+                setter: (v) => this.crcon.setIdleAutokickTime(v)
+            },
+            {
+                key: 'maxPingAutokick',
+                value: generalSettings.maxPingAutokick,
+                setter: (v) => this.crcon.setMaxPingAutokick(v)
+            }
+        ];
+
+        for (const spec of applySpec) {
+            if (spec.value === null || spec.value === undefined) {
+                continue;
+            }
+
+            try {
+                await spec.setter(spec.value);
+                logger.info(
+                    `[MapVoting S${this.serverNum}] Applied schedule ${spec.key}=${spec.value} for "${schedule.scheduleName}"`
+                );
+            } catch (error) {
+                logger.error(
+                    `[MapVoting S${this.serverNum}] Failed applying ${spec.key} for "${schedule.scheduleName}": ${error.message}`
+                );
             }
         }
     }

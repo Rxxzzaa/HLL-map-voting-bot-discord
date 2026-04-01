@@ -19,6 +19,22 @@ const logger = require('../utils/logger');
 const automodPanelHelper = new MapVotePanelService();
 
 class SchedulePanelService {
+    getDefaultScheduleGeneralSettings() {
+        return {
+            teamSwitchCooldown: null,
+            idleAutokickTime: null,
+            maxPingAutokick: null
+        };
+    }
+
+    getScheduleGeneralSettingDefinitions() {
+        return [
+            { key: 'teamSwitchCooldown', label: 'Team Switch Cooldown', unit: 'min' },
+            { key: 'idleAutokickTime', label: 'Idle Autokick Time', unit: 'min' },
+            { key: 'maxPingAutokick', label: 'Max Ping Autokick', unit: 'ms' }
+        ];
+    }
+
     /**
      * Build main schedule management panel
      */
@@ -149,6 +165,12 @@ class SchedulePanelService {
         );
 
         const row3 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_general_${serverNum}`)
+                .setLabel('General Settings')
+                .setEmoji('⚙️')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(schedules.length === 0),
             new ButtonBuilder()
                 .setCustomId(`schedule_automods_${serverNum}`)
                 .setLabel('Edit Automods')
@@ -343,6 +365,112 @@ class SchedulePanelService {
         );
 
         return { embeds: [embed], components: [selectRow, backRow] };
+    }
+
+    buildScheduleGeneralSelectPanel(serverNum) {
+        const schedules = scheduleManager.getSchedules(serverNum);
+
+        const embed = new EmbedBuilder()
+            .setTitle('⚙️ Select Schedule for General Settings')
+            .setDescription('Choose which schedule should have general settings edited.')
+            .setColor(0x16A085);
+
+        if (schedules.length === 0) {
+            embed.setDescription('No schedules configured. Create a schedule first.');
+            const backRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`schedule_back_${serverNum}`)
+                    .setLabel('Back')
+                    .setEmoji('⬅️')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+            return { embeds: [embed], components: [backRow] };
+        }
+
+        const options = schedules.map(schedule => ({
+            label: schedule.name.substring(0, 100),
+            description: `${schedule.startTime}-${schedule.endTime}`.substring(0, 100),
+            value: schedule.id
+        }));
+
+        const selectRow = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`schedule_select_general_${serverNum}`)
+                .setPlaceholder('Select a schedule...')
+                .addOptions(options)
+        );
+
+        const backRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_back_${serverNum}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [selectRow, backRow] };
+    }
+
+    buildScheduleGeneralPanel(serverNum, scheduleId, serverValues = {}) {
+        const schedules = scheduleManager.getSchedules(serverNum);
+        const schedule = schedules.find(item => item.id === scheduleId);
+        if (!schedule) {
+            return { content: 'Schedule not found.' };
+        }
+
+        const defs = this.getScheduleGeneralSettingDefinitions();
+        const scheduleValues = {
+            ...this.getDefaultScheduleGeneralSettings(),
+            ...(schedule.generalSettings || {})
+        };
+
+        const valueText = (key, unit) => {
+            const value = scheduleValues[key];
+            if (value === null || value === undefined) {
+                const serverValue = serverValues[key];
+                return `Server (${serverValue === null || serverValue === undefined ? 'Unknown' : `${serverValue} ${unit}`})`;
+            }
+            return `Schedule (${value} ${unit})`;
+        };
+
+        const embed = new EmbedBuilder()
+            .setTitle(`⚙️ Edit General Settings - ${schedule.name}`)
+            .setColor(0x16A085)
+            .setDescription(
+                'Configure schedule-specific general server settings.\n' +
+                'If set to **Server**, the current server value is kept.\n' +
+                'If set to **Schedule**, this schedule will apply its own value when it becomes active.\n\n' +
+                defs.map(def => `**${def.label}:** ${valueText(def.key, def.unit)}`).join('\n')
+            );
+
+        const toggleRow = new ActionRowBuilder().addComponents(
+            ...defs.map(def => {
+                const enabled = scheduleValues[def.key] !== null && scheduleValues[def.key] !== undefined;
+                return new ButtonBuilder()
+                    .setCustomId(`schedule_general_toggle_${def.key}_${serverNum}_${scheduleId}`)
+                    .setLabel(`${def.label}: ${enabled ? 'Schedule' : 'Server'}`)
+                    .setStyle(enabled ? ButtonStyle.Success : ButtonStyle.Secondary);
+            })
+        );
+
+        const editRow = new ActionRowBuilder().addComponents(
+            ...defs.map(def =>
+                new ButtonBuilder()
+                    .setCustomId(`schedule_general_edit_${def.key}_${serverNum}_${scheduleId}`)
+                    .setLabel(`Edit ${def.label}`)
+                    .setStyle(ButtonStyle.Secondary)
+            )
+        );
+
+        const backRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`schedule_general_${serverNum}`)
+                .setLabel('Back to Schedule Select')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return { embeds: [embed], components: [toggleRow, editRow, backRow] };
     }
 
     /**

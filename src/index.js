@@ -328,6 +328,58 @@ async function getLiveAutoModConfig(crcon, moduleType) {
     return response?.result || {};
 }
 
+function parseNonNegativeInteger(rawValue, fieldLabel) {
+    const value = parseInt(String(rawValue || '').trim(), 10);
+    if (Number.isNaN(value) || value < 0) {
+        throw new Error(`${fieldLabel} must be a non-negative integer.`);
+    }
+    return value;
+}
+
+function extractApiResultInt(response) {
+    if (typeof response?.result === 'number') return response.result;
+    if (typeof response === 'number') return response;
+    return null;
+}
+
+async function getLiveGeneralSettings(crcon) {
+    if (!crcon) {
+        return {
+            teamSwitchCooldown: null,
+            idleAutokickTime: null,
+            maxPingAutokick: null
+        };
+    }
+
+    const [teamSwitch, idleKick, maxPing] = await Promise.all([
+        crcon.getTeamSwitchCooldown().catch(() => null),
+        crcon.getIdleAutokickTime().catch(() => null),
+        crcon.getMaxPingAutokick().catch(() => null)
+    ]);
+
+    return {
+        teamSwitchCooldown: extractApiResultInt(teamSwitch),
+        idleAutokickTime: extractApiResultInt(idleKick),
+        maxPingAutokick: extractApiResultInt(maxPing)
+    };
+}
+
+async function setGeneralSetting(crcon, key, value) {
+    if (key === 'teamSwitchCooldown') {
+        await crcon.setTeamSwitchCooldown(value);
+        return;
+    }
+    if (key === 'idleAutokickTime') {
+        await crcon.setIdleAutokickTime(value);
+        return;
+    }
+    if (key === 'maxPingAutokick') {
+        await crcon.setMaxPingAutokick(value);
+        return;
+    }
+    throw new Error('Unknown general setting key.');
+}
+
 // Ready event
 client.once(Events.ClientReady, async () => {
     isDiscordReady = true;
@@ -635,7 +687,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             // Show settings panel
             else if (customId === 'mapvote_settings' || customId.startsWith('mapvote_settings_')) {
                 await interaction.deferUpdate();
-                const panel = mapVotePanelService.buildSettingsPanel(service);
+                const generalSettings = await getLiveGeneralSettings(crcon);
+                const panel = mapVotePanelService.buildSettingsPanel(service, generalSettings);
                 await updatePanelMessage(interaction, panel);
             }
 
@@ -796,6 +849,60 @@ client.on(Events.InteractionCreate, async (interaction) => {
                                 .setLabel('Votes map stays out after being played')
                                 .setStyle(TextInputStyle.Short)
                                 .setValue(String(service.excludeRecentMaps ?? 3))
+                                .setRequired(true)
+                        )
+                    );
+                await interaction.showModal(modal);
+            }
+
+            else if (customId === 'mapvote_set_team_switch_cooldown') {
+                const generalSettings = await getLiveGeneralSettings(crcon);
+                const modal = new ModalBuilder()
+                    .setCustomId(`mapvote_modal_team_switch_cooldown_${serverNum}`)
+                    .setTitle('Set Team Switch Cooldown')
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('value')
+                                .setLabel('Minutes')
+                                .setStyle(TextInputStyle.Short)
+                                .setValue(String(generalSettings.teamSwitchCooldown ?? 0))
+                                .setRequired(true)
+                        )
+                    );
+                await interaction.showModal(modal);
+            }
+
+            else if (customId === 'mapvote_set_idle_autokick') {
+                const generalSettings = await getLiveGeneralSettings(crcon);
+                const modal = new ModalBuilder()
+                    .setCustomId(`mapvote_modal_idle_autokick_${serverNum}`)
+                    .setTitle('Set Idle Autokick Time')
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('value')
+                                .setLabel('Minutes')
+                                .setStyle(TextInputStyle.Short)
+                                .setValue(String(generalSettings.idleAutokickTime ?? 0))
+                                .setRequired(true)
+                        )
+                    );
+                await interaction.showModal(modal);
+            }
+
+            else if (customId === 'mapvote_set_max_ping') {
+                const generalSettings = await getLiveGeneralSettings(crcon);
+                const modal = new ModalBuilder()
+                    .setCustomId(`mapvote_modal_max_ping_${serverNum}`)
+                    .setTitle('Set Max Ping Autokick')
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('value')
+                                .setLabel('Milliseconds')
+                                .setStyle(TextInputStyle.Short)
+                                .setValue(String(generalSettings.maxPingAutokick ?? 0))
                                 .setRequired(true)
                         )
                     );
@@ -1178,6 +1285,116 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const panel = schedulePanel.buildSchedulePanel(srvNum, serverName);
                     await updatePanelMessage(interaction, panel);
                     await interaction.followUp({ content: `Days set to ${preset}.`, flags: MessageFlags.Ephemeral });
+                }
+
+                // Schedule general settings - show schedule selection
+                else if (customId.startsWith('schedule_general_') && /^schedule_general_\d+$/.test(customId)) {
+                    await interaction.deferUpdate();
+                    const srvNum = parseInt(customId.split('_').pop(), 10);
+                    const panel = schedulePanel.buildScheduleGeneralSelectPanel(srvNum);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                // Schedule general settings - open editor
+                else if (customId.startsWith('schedule_general_edit_')) {
+                    const idParts = customId.split('_');
+                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                    const scheduleId = idParts[idParts.length - 1];
+                    const settingKey = idParts.slice(3, idParts.length - 2).join('_').replace('edit_', '');
+                    const schedule = getScheduleById(srvNum, scheduleId);
+                    if (!schedule) {
+                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
+                    }
+
+                    const labelMap = {
+                        teamSwitchCooldown: 'Team Switch Cooldown',
+                        idleAutokickTime: 'Idle Autokick Time',
+                        maxPingAutokick: 'Max Ping Autokick'
+                    };
+                    const unitMap = {
+                        teamSwitchCooldown: 'minutes',
+                        idleAutokickTime: 'minutes',
+                        maxPingAutokick: 'milliseconds'
+                    };
+
+                    if (!labelMap[settingKey]) {
+                        return replyEphemeralAutoDelete(interaction, 'Unknown setting selected.');
+                    }
+
+                    const scheduleValues = {
+                        teamSwitchCooldown: null,
+                        idleAutokickTime: null,
+                        maxPingAutokick: null,
+                        ...(schedule.generalSettings || {})
+                    };
+                    const liveValues = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                    const currentValue = scheduleValues[settingKey] ?? liveValues[settingKey] ?? 0;
+
+                    const modal = new ModalBuilder()
+                        .setCustomId(`schedule_general_modal_${settingKey}_${srvNum}_${scheduleId}`)
+                        .setTitle(`Schedule - ${labelMap[settingKey]}`)
+                        .addComponents(
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('value')
+                                    .setLabel(unitMap[settingKey])
+                                    .setStyle(TextInputStyle.Short)
+                                    .setRequired(true)
+                                    .setValue(String(currentValue))
+                            )
+                        );
+                    await interaction.showModal(modal);
+                }
+
+                // Schedule general settings - toggle setting between server and schedule-specific
+                else if (customId.startsWith('schedule_general_toggle_')) {
+                    const idParts = customId.split('_');
+                    const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                    const scheduleId = idParts[idParts.length - 1];
+                    const settingKey = idParts.slice(3, idParts.length - 2).join('_').replace('toggle_', '');
+                    const schedule = getScheduleById(srvNum, scheduleId);
+
+                    if (!schedule) {
+                        return replyEphemeralAutoDelete(interaction, 'Schedule not found.');
+                    }
+
+                    const currentGeneralSettings = {
+                        teamSwitchCooldown: null,
+                        idleAutokickTime: null,
+                        maxPingAutokick: null,
+                        ...(schedule.generalSettings || {})
+                    };
+
+                    let nextValue = null;
+                    if (currentGeneralSettings[settingKey] === null || currentGeneralSettings[settingKey] === undefined) {
+                        const liveValues = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                        nextValue = liveValues[settingKey];
+                        if (nextValue === null || nextValue === undefined) {
+                            return replyEphemeralAutoDelete(interaction, `Failed to load current ${settingKey} from server.`);
+                        }
+                    }
+
+                    const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
+                        generalSettings: {
+                            ...currentGeneralSettings,
+                            [settingKey]: nextValue
+                        }
+                    });
+                    if (!updateResult.success) {
+                        return replyEphemeralAutoDelete(interaction, `Failed to update setting: ${updateResult.error}`);
+                    }
+
+                    const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                    await interaction.deferUpdate();
+                    const panel = schedulePanel.buildScheduleGeneralPanel(srvNum, scheduleId, generalSettings);
+                    await updatePanelMessage(interaction, panel);
+                    await followUpEphemeralAutoDelete(
+                        interaction,
+                        nextValue === null
+                            ? `${settingKey} now uses current server settings for this schedule.`
+                            : `${settingKey} is now schedule-specific for this schedule.`,
+                        10000
+                    );
                 }
 
                 // Schedule automods - open selected schedule editor
@@ -1656,6 +1873,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await updatePanelMessage(interaction, panel);
             }
 
+            // Select schedule for general settings editing
+            else if (customId.startsWith('schedule_select_general_')) {
+                const srvNum = parseInt(customId.split('_').pop(), 10);
+                const scheduleId = interaction.values[0];
+                const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                await interaction.deferUpdate();
+                const panel = schedulePanel.buildScheduleGeneralPanel(srvNum, scheduleId, generalSettings);
+                await updatePanelMessage(interaction, panel);
+            }
+
             // Select schedule automod module field to edit
             else if (customId.startsWith('schedule_automod_field_')) {
                 const idParts = customId.split('_');
@@ -2112,6 +2339,62 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 return;
             }
 
+            if (customId.startsWith('schedule_general_modal_')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+                const idParts = customId.replace('schedule_general_modal_', '').split('_');
+                const settingKey = idParts[0];
+                const srvNum = parseInt(idParts[idParts.length - 2], 10);
+                const scheduleId = idParts[idParts.length - 1];
+                const schedule = getScheduleById(srvNum, scheduleId);
+                if (!schedule) {
+                    await interaction.editReply({ content: 'Schedule not found.' });
+                    return;
+                }
+
+                const labelMap = {
+                    teamSwitchCooldown: 'Team Switch Cooldown',
+                    idleAutokickTime: 'Idle Autokick Time',
+                    maxPingAutokick: 'Max Ping Autokick'
+                };
+                if (!labelMap[settingKey]) {
+                    await interaction.editReply({ content: 'Unknown setting key.' });
+                    return;
+                }
+
+                let nextValue;
+                try {
+                    nextValue = parseNonNegativeInteger(interaction.fields.getTextInputValue('value'), labelMap[settingKey]);
+                } catch (error) {
+                    await interaction.editReply({ content: error.message });
+                    return;
+                }
+
+                const currentGeneralSettings = {
+                    teamSwitchCooldown: null,
+                    idleAutokickTime: null,
+                    maxPingAutokick: null,
+                    ...(schedule.generalSettings || {})
+                };
+
+                const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
+                    generalSettings: {
+                        ...currentGeneralSettings,
+                        [settingKey]: nextValue
+                    }
+                });
+                if (!updateResult.success) {
+                    await interaction.editReply({ content: `Failed to save schedule setting: ${updateResult.error}` });
+                    return;
+                }
+
+                const generalSettings = await getLiveGeneralSettings(crconServices[srvNum] || crconServices[1]);
+                const panel = schedulePanel.buildScheduleGeneralPanel(srvNum, scheduleId, generalSettings);
+                await editReplyEphemeralAutoDelete(interaction, `Saved **${labelMap[settingKey]}** to this schedule.`, 10000);
+                await updatePanelMessage(interaction, panel, { preferMessageEdit: true });
+                return;
+            }
+
             if (customId.startsWith('schedule_automod_field_modal_')) {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -2546,7 +2829,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 });
             }
 
-            const panel = mapVotePanelService.buildSettingsPanel(service);
+            else if (customId.startsWith('mapvote_modal_team_switch_cooldown_')) {
+                const minutes = parseNonNegativeInteger(value, 'Team Switch Cooldown');
+                await crcon.setTeamSwitchCooldown(minutes);
+            }
+
+            else if (customId.startsWith('mapvote_modal_idle_autokick_')) {
+                const minutes = parseNonNegativeInteger(value, 'Idle Autokick Time');
+                await crcon.setIdleAutokickTime(minutes);
+            }
+
+            else if (customId.startsWith('mapvote_modal_max_ping_')) {
+                const maxMs = parseNonNegativeInteger(value, 'Max Ping Autokick');
+                await crcon.setMaxPingAutokick(maxMs);
+            }
+
+            const generalSettings = await getLiveGeneralSettings(crcon);
+            const panel = mapVotePanelService.buildSettingsPanel(service, generalSettings);
             await updatePanelMessage(interaction, panel);
         }
 

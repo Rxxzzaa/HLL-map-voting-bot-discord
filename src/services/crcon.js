@@ -265,6 +265,37 @@ class CRCONService {
             reset_to_default: resetToDefault
         });
     }
+
+    // General server settings
+    async getTeamSwitchCooldown() {
+        return this.get('get_team_switch_cooldown');
+    }
+
+    async setTeamSwitchCooldown(minutes) {
+        const response = await this.post('set_team_switch_cooldown', { minutes });
+        this.assertCommandSucceeded(response, 'set_team_switch_cooldown');
+        return response;
+    }
+
+    async getIdleAutokickTime() {
+        return this.get('get_idle_autokick_time');
+    }
+
+    async setIdleAutokickTime(minutes) {
+        const response = await this.post('set_idle_autokick_time', { minutes });
+        this.assertCommandSucceeded(response, 'set_idle_autokick_time');
+        return response;
+    }
+
+    async getMaxPingAutokick() {
+        return this.get('get_max_ping_autokick');
+    }
+
+    async setMaxPingAutokick(maxMs) {
+        const response = await this.post('set_max_ping_autokick', { max_ms: maxMs });
+        this.assertCommandSucceeded(response, 'set_max_ping_autokick');
+        return response;
+    }
 }
 
 // Create service instances
