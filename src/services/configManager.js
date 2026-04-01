@@ -4,6 +4,7 @@
  */
 
 const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
 const { getDataFilePath } = require('../utils/dataPath');
 
