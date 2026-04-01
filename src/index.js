@@ -1328,34 +1328,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await interaction.followUp({ content: `${moduleType} schedule config saved.`, flags: MessageFlags.Ephemeral });
                 }
 
-                // Schedule automods - save current draft as reusable preset
+                // Schedule automods - save current draft directly to this schedule
                 else if (customId.startsWith('schedule_automod_save_')) {
                     const idParts = customId.split('_');
                     const srvNum = parseInt(idParts[idParts.length - 2], 10);
                     const scheduleId = idParts[idParts.length - 1];
                     const moduleType = idParts.slice(3, idParts.length - 2).join('_').replace('save_', '');
+                    const schedule = getScheduleById(srvNum, scheduleId);
+                    if (!schedule) {
+                        return interaction.reply({ content: 'Schedule not found.', flags: MessageFlags.Ephemeral });
+                    }
 
-                    const typeLabel = moduleType === 'level'
-                        ? 'Level'
-                        : moduleType === 'no_leader'
-                            ? 'No Leader'
-                            : 'No Solo Tank';
+                    const draftKey = getScheduleAutoModDraftKey(srvNum, scheduleId, interaction.user.id);
+                    const draft = getScheduleAutoModDraftMap(moduleType).get(draftKey);
+                    if (!draft) {
+                        return interaction.reply({ content: `No ${moduleType} draft found. Open the panel and edit values first.`, flags: MessageFlags.Ephemeral });
+                    }
 
-                    const modal = new ModalBuilder()
-                        .setCustomId(`automod_save_modal_${moduleType}_${srvNum}_sched_${scheduleId}`)
-                        .setTitle(`Save ${typeLabel} Config`)
-                        .addComponents(
-                            new ActionRowBuilder().addComponents(
-                                new TextInputBuilder()
-                                    .setCustomId('name')
-                                    .setLabel('Preset Name')
-                                    .setStyle(TextInputStyle.Short)
-                                    .setPlaceholder(`e.g. peakhours (${typeLabel})`)
-                                    .setRequired(true)
-                                    .setMaxLength(80)
-                            )
-                        );
-                    await interaction.showModal(modal);
+                    const updateResult = scheduleManager.updateSchedule(srvNum, scheduleId, {
+                        automodConfigs: {
+                            ...(schedule.automodConfigs || {}),
+                            [moduleType]: draft
+                        }
+                    });
+                    if (!updateResult.success) {
+                        return interaction.reply({ content: `Failed to save schedule ${moduleType} config: ${updateResult.error}`, flags: MessageFlags.Ephemeral });
+                    }
+
+                    await interaction.deferUpdate();
+                    const panel = schedulePanel.buildScheduleAutomodModulePanel(srvNum, scheduleId, moduleType, draft);
+                    await updatePanelMessage(interaction, panel);
+                    await interaction.followUp({ content: `${moduleType} saved to this schedule.`, flags: MessageFlags.Ephemeral });
                 }
 
                 // Schedule automods - go back from module panel

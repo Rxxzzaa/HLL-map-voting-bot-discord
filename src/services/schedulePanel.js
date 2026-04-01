@@ -524,7 +524,7 @@ class SchedulePanelService {
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
                 .setCustomId(`schedule_automod_save_${moduleType}_${serverNum}_${scheduleId}`)
-                .setLabel('Save Config')
+                .setLabel('Save to Schedule')
                 .setEmoji('💾')
                 .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
