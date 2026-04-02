@@ -67,3 +67,39 @@ test('active vote is finalized when seeded state is lost mid-match', async () =>
     assert.equal(service.voteActive, false);
     assert.equal(service.seeded, false);
 });
+
+test('non-seeded rotation does not overwrite a vote finalized during seeded drop at match end', async () => {
+    const service = new MapVotingService(1);
+    let stopVoteCalls = 0;
+    let nonSeededRotationCalls = 0;
+
+    service.voteMapActive = true;
+    service.seeded = true;
+    service.voteActive = true;
+    service.gameActive = true;
+    service.minimumPlayers = 50;
+    service.deactivatePlayers = 40;
+    service.applyScheduleSettings = async () => {};
+    service.getGameState = async () => {
+        service.gameActive = false;
+        return false;
+    };
+    service.crcon = {
+        getStatus: async () => ({ result: { current_players: 10 } })
+    };
+    service.stopVote = async () => {
+        stopVoteCalls += 1;
+        service.voteActive = false;
+    };
+    service.clearAllMessages = async () => {};
+    service.sendSeedingMsg = async () => {};
+    service.applyNonSeededRotation = async () => {
+        nonSeededRotationCalls += 1;
+        return true;
+    };
+
+    await service.doMapVote();
+
+    assert.equal(stopVoteCalls, 1);
+    assert.equal(nonSeededRotationCalls, 0);
+});

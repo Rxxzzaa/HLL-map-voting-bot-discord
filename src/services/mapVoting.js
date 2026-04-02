@@ -1058,6 +1058,7 @@ class MapVotingService {
             const currentPlayers = status.result.current_players || 0;
             const wasSeeded = this.seeded;
             const votingEnabled = this.voteMapActive;
+            let finalizedVoteThisTick = false;
 
             if (currentPlayers >= this.minimumPlayers && !this.seeded) {
                 logger.info(`[MapVoting S${this.serverNum}] Server reached ${this.minimumPlayers} players!`);
@@ -1075,6 +1076,7 @@ class MapVotingService {
                 logger.info(`[MapVoting S${this.serverNum}] Seeded state lost while vote active, finalizing current vote`);
                 await this.stopVote();
                 this.lastReminderTime = null;
+                finalizedVoteThisTick = true;
             }
 
             if (votingEnabled && this.seeded) {
@@ -1101,7 +1103,7 @@ class MapVotingService {
                     this.sendSeedingMessage = false;
                 }
 
-                if (matchEnded) {
+                if (matchEnded && !finalizedVoteThisTick) {
                     await this.applyNonSeededRotation();
                 }
             }
