@@ -80,7 +80,9 @@ class CRCONService {
             const response = await this.client.get(`/api/${endpoint}`);
             return response.data;
         } catch (error) {
-            logger.error(`[CRCON ${this.serverName}] GET ${endpoint} failed: ${this.formatRequestError(error)}`);
+            const isStatusEndpointFailure = endpoint === 'get_status' && (error.response?.status || 0) >= 500;
+            const logMethod = isStatusEndpointFailure ? logger.warn.bind(logger) : logger.error.bind(logger);
+            logMethod(`[CRCON ${this.serverName}] GET ${endpoint} failed: ${this.formatRequestError(error)}`);
             throw error;
         }
     }

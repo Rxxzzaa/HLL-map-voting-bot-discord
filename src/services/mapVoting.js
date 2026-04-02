@@ -85,6 +85,11 @@ class MapVotingService {
         // Schedule tracking
         this.lastScheduleId = null;
         this.pendingScheduleTransition = false;
+
+        // CRCON status resilience
+        this.statusFailureCount = 0;
+        this.statusBackoffUntil = 0;
+        this.lastStatusFailureLogAt = 0;
     }
 
     // ==================== INITIALIZATION ====================
@@ -168,6 +173,52 @@ class MapVotingService {
         this.cachedMaps = null;
         this.cachedWhitelist = null;
         this.cacheTime = 0;
+    }
+
+    getStatusBackoffMs() {
+        const baseMs = 15000;
+        const exponent = Math.max(this.statusFailureCount - 1, 0);
+        return Math.min(baseMs * (2 ** exponent), 5 * 60 * 1000);
+    }
+
+    handleStatusFailure(error) {
+        this.statusFailureCount += 1;
+        const backoffMs = this.getStatusBackoffMs();
+        this.statusBackoffUntil = Date.now() + backoffMs;
+
+        const now = Date.now();
+        if (this.statusFailureCount === 1 || now - this.lastStatusFailureLogAt >= 60000) {
+            logger.warn(
+                `[MapVoting S${this.serverNum}] CRCON get_status unavailable; failure=${this.statusFailureCount} backoff=${Math.round(backoffMs / 1000)}s reason=${error.message}`
+            );
+            this.lastStatusFailureLogAt = now;
+        }
+    }
+
+    handleStatusRecovery() {
+        if (this.statusFailureCount > 0) {
+            logger.info(
+                `[MapVoting S${this.serverNum}] CRCON get_status recovered after ${this.statusFailureCount} failure(s)`
+            );
+        }
+        this.statusFailureCount = 0;
+        this.statusBackoffUntil = 0;
+        this.lastStatusFailureLogAt = 0;
+    }
+
+    async getServerStatus() {
+        if (this.statusBackoffUntil > Date.now()) {
+            return null;
+        }
+
+        try {
+            const status = await this.crcon.getStatus();
+            this.handleStatusRecovery();
+            return status;
+        } catch (error) {
+            this.handleStatusFailure(error);
+            return null;
+        }
     }
 
     // ==================== VOTE PERSISTENCE ====================
@@ -1048,7 +1099,7 @@ class MapVotingService {
                 }
             }
 
-            const status = await this.crcon.getStatus();
+            const status = await this.getServerStatus();
             if (!status || !status.result) {
                 this.isRunning = false;
                 this.doingMapVote = false;

@@ -103,3 +103,48 @@ test('non-seeded rotation does not overwrite a vote finalized during seeded drop
     assert.equal(stopVoteCalls, 1);
     assert.equal(nonSeededRotationCalls, 0);
 });
+
+test('get_status failures enter backoff and skip repeated polling attempts', async () => {
+    const service = new MapVotingService(1);
+    let statusCalls = 0;
+
+    service.crcon = {
+        getStatus: async () => {
+            statusCalls += 1;
+            throw new Error('Request failed with status code 500');
+        }
+    };
+
+    const firstStatus = await service.getServerStatus();
+    const secondStatus = await service.getServerStatus();
+
+    assert.equal(firstStatus, null);
+    assert.equal(secondStatus, null);
+    assert.equal(statusCalls, 1);
+    assert.equal(service.statusFailureCount, 1);
+    assert.ok(service.statusBackoffUntil > Date.now());
+});
+
+test('successful get_status clears degraded mode after failure', async () => {
+    const service = new MapVotingService(1);
+    let shouldFail = true;
+
+    service.crcon = {
+        getStatus: async () => {
+            if (shouldFail) {
+                throw new Error('Request failed with status code 500');
+            }
+            return { result: { current_players: 12 } };
+        }
+    };
+
+    await service.getServerStatus();
+    service.statusBackoffUntil = 0;
+    shouldFail = false;
+
+    const status = await service.getServerStatus();
+
+    assert.deepEqual(status, { result: { current_players: 12 } });
+    assert.equal(service.statusFailureCount, 0);
+    assert.equal(service.statusBackoffUntil, 0);
+});
