@@ -17,7 +17,19 @@ function getScheduleWhitelistServerNum(customId) {
     return Number.isNaN(serverNum) ? null : serverNum;
 }
 
+function getNonSeededWhitelistServerNum(customId) {
+    if (!customId.startsWith('nonseed_wl_')) {
+        return null;
+    }
+
+    const parts = customId.split('_');
+    const serverPart = parts[3];
+    const serverNum = parseInt(serverPart, 10);
+    return Number.isNaN(serverNum) ? null : serverNum;
+}
+
 module.exports = {
     isMapVoteToggleButton,
-    getScheduleWhitelistServerNum
+    getScheduleWhitelistServerNum,
+    getNonSeededWhitelistServerNum
 };

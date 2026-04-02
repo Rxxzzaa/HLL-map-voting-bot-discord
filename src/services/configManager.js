@@ -77,6 +77,11 @@ class ConfigManager {
         return this.config.servers[serverNum] || null;
     }
 
+    getNonSeededMapList(serverNum) {
+        const serverConfig = this.getServerConfig(serverNum);
+        return Array.isArray(serverConfig?.nonSeededMapList) ? [...serverConfig.nonSeededMapList] : [];
+    }
+
     setServerConfig(serverNum, config) {
         this.config.servers[serverNum] = {
             ...this.config.servers[serverNum],
@@ -92,6 +97,17 @@ class ConfigManager {
         if (Object.keys(this.config.servers).length === 0) {
             this.config.setupComplete = false;
         }
+        return this.saveConfig();
+    }
+
+    setNonSeededMapList(serverNum, mapList) {
+        const current = this.config.servers[serverNum] || {};
+        this.config.servers[serverNum] = {
+            ...current,
+            nonSeededMapList: Array.isArray(mapList) ? [...new Set(mapList)] : [],
+            updatedAt: new Date().toISOString()
+        };
+        this.config.setupComplete = true;
         return this.saveConfig();
     }
 
@@ -138,7 +154,8 @@ class ConfigManager {
             channelId: envChannel || saved?.channelId,
             serverName: saved?.serverName || `Server ${serverNum}`,
             configured: !!(envUrl || saved?.crconUrl) && !!(envToken || saved?.crconToken),
-            excludePlayedMapForXvotes
+            excludePlayedMapForXvotes,
+            nonSeededMapList: Array.isArray(saved?.nonSeededMapList) ? [...saved.nonSeededMapList] : []
         };
     }
 }

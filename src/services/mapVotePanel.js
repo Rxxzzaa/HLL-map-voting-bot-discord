@@ -6,6 +6,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const logger = require('../utils/logger');
 const scheduleManager = require('./scheduleManager');
+const configManager = require('./configManager');
 
 const SOLO_TANK_FIELD_DEFS = [
     { key: 'dry_run', label: 'Dry Run', type: 'boolean' },
@@ -609,6 +610,7 @@ class MapVotePanelService {
         const teamSwitchCooldown = generalSettings.teamSwitchCooldown;
         const idleAutokickTime = generalSettings.idleAutokickTime;
         const maxPingAutokick = generalSettings.maxPingAutokick;
+        const nonSeededMapListCount = config.nonSeededMapListCount || 0;
 
         const embed = new EmbedBuilder()
             .setTitle('⚙️ Map Vote Settings')
@@ -641,6 +643,12 @@ class MapVotePanelService {
                     `**Team Switch Cooldown:** ${teamSwitchCooldown ?? 'Unknown'} min\n` +
                     `**Idle Autokick Time:** ${idleAutokickTime ?? 'Unknown'} min\n` +
                     `**Max Ping Autokick:** ${maxPingAutokick ?? 'Unknown'} ms`
+            },
+            {
+                name: '🔄 Non-Seeded Rotation',
+                value:
+                    `**Saved Maps:** ${nonSeededMapListCount}\n` +
+                    '**Used When:** Server is below seeded threshold and no vote is running'
             }
         );
 
@@ -689,13 +697,157 @@ class MapVotePanelService {
                 .setEmoji('📶')
                 .setStyle(ButtonStyle.Secondary),
             new ButtonBuilder()
+                .setCustomId('mapvote_non_seeded_maps')
+                .setLabel('Non-Seeded Map List')
+                .setEmoji('🔄')
+                .setStyle(ButtonStyle.Secondary),
+        );
+
+        const row3 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
                 .setCustomId('mapvote_back')
                 .setLabel('Back to Main')
                 .setEmoji('⬅️')
                 .setStyle(ButtonStyle.Secondary)
         );
 
-        return { embeds: [embed], components: [row1, row2] };
+        return { embeds: [embed], components: [row1, row2, row3] };
+    }
+
+    async buildNonSeededMapListPanel(serverNum, crconService, page = 0, filter = null) {
+        let allMaps = [];
+        try {
+            const mapsResponse = await crconService.getMaps();
+            allMaps = mapsResponse?.result || [];
+        } catch (error) {
+            logger.error('[MapVotePanel] Error fetching non-seeded rotation maps:', error);
+        }
+
+        const savedMapList = configManager.getNonSeededMapList(serverNum);
+        const savedMapSet = new Set(savedMapList);
+
+        let filteredMaps = allMaps;
+        if (filter === 'warfare') {
+            filteredMaps = allMaps.filter(m => m.game_mode === 'warfare');
+        } else if (filter === 'offensive') {
+            filteredMaps = allMaps.filter(m => m.game_mode === 'offensive');
+        } else if (filter === 'skirmish') {
+            filteredMaps = allMaps.filter(m => m.game_mode === 'skirmish');
+        } else if (filter === 'night') {
+            filteredMaps = allMaps.filter(m => m.environment === 'night');
+        } else if (filter === 'day') {
+            filteredMaps = allMaps.filter(m => m.environment !== 'night');
+        }
+
+        const mapsPerPage = 12;
+        const totalPages = Math.max(1, Math.ceil(filteredMaps.length / mapsPerPage));
+        const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+        const startIndex = safePage * mapsPerPage;
+        const pageMaps = filteredMaps.slice(startIndex, startIndex + mapsPerPage);
+
+        const mapLines = pageMaps.map(map => {
+            const isIncluded = savedMapSet.has(map.id);
+            const icon = isIncluded ? '✅' : '❌';
+            const mode = map.game_mode === 'warfare' ? '⚔️' : map.game_mode === 'offensive' ? '🎯' : '🔫';
+            const time = map.environment === 'night' ? '🌙' : map.environment === 'day' ? '☀️' : '🌤️';
+            return `${icon} ${mode}${time} ${map.pretty_name || map.id}`;
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle('🔄 Non-Seeded Map List')
+            .setDescription(
+                `**Saved Maps:** ${savedMapList.length}\n` +
+                '**Legend:** ✅ = Included, ❌ = Excluded\n' +
+                '**Modes:** ⚔️ Warfare, 🎯 Offensive, 🔫 Skirmish\n' +
+                '**Time:** ☀️ Day, 🌤️ Overcast, 🌙 Night\n\n' +
+                'This list is used for next-map rotation when the server is below the seeded threshold and no vote is active.\n\n' +
+                `Page ${safePage + 1}/${totalPages}\n\n` +
+                (mapLines.join('\n') || 'No maps found')
+            )
+            .setColor(0xF39C12)
+            .setFooter({ text: 'Select maps to include in the non-seeded rotation list' });
+
+        const actionRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_fill_${serverNum}`)
+                .setLabel('Fill With All Maps')
+                .setEmoji('🌐')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_clear_${serverNum}`)
+                .setLabel('Clear List')
+                .setEmoji('🧹')
+                .setStyle(ButtonStyle.Danger)
+        );
+
+        const filterRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_filter_${serverNum}_all_${safePage}`)
+                .setLabel('All')
+                .setStyle(filter === null ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_filter_${serverNum}_warfare_${safePage}`)
+                .setLabel('Warfare')
+                .setEmoji('⚔️')
+                .setStyle(filter === 'warfare' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_filter_${serverNum}_offensive_${safePage}`)
+                .setLabel('Offensive')
+                .setEmoji('🎯')
+                .setStyle(filter === 'offensive' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_filter_${serverNum}_skirmish_${safePage}`)
+                .setLabel('Skirmish')
+                .setEmoji('🔫')
+                .setStyle(filter === 'skirmish' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_filter_${serverNum}_night_${safePage}`)
+                .setLabel('Night')
+                .setEmoji('🌙')
+                .setStyle(filter === 'night' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+        );
+
+        const components = [actionRow, filterRow];
+
+        if (pageMaps.length > 0) {
+            const selectOptions = pageMaps.slice(0, 25).map(map => ({
+                label: (map.pretty_name || map.id).substring(0, 100),
+                value: map.id,
+                description: `${savedMapSet.has(map.id) ? '✅ Included' : '❌ Excluded'} - ${map.game_mode}`,
+                emoji: savedMapSet.has(map.id) ? '✅' : '❌'
+            }));
+
+            const selectRow = new ActionRowBuilder().addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId(`nonseed_wl_toggle_${serverNum}`)
+                    .setPlaceholder('Toggle maps...')
+                    .setMinValues(1)
+                    .setMaxValues(Math.min(selectOptions.length, 10))
+                    .addOptions(selectOptions)
+            );
+            components.push(selectRow);
+        }
+
+        const navRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_prev_${serverNum}_${safePage}_${filter || 'all'}`)
+                .setLabel('◀ Prev')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(safePage === 0),
+            new ButtonBuilder()
+                .setCustomId(`nonseed_wl_next_${serverNum}_${safePage}_${filter || 'all'}`)
+                .setLabel('Next ▶')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(safePage >= totalPages - 1),
+            new ButtonBuilder()
+                .setCustomId(`mapvote_settings_${serverNum}`)
+                .setLabel('Back')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+        );
+        components.push(navRow);
+
+        return { embeds: [embed], components: components.slice(0, 5) };
     }
 
     getSoloTankFieldDefinitions() {

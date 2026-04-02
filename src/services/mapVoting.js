@@ -683,6 +683,25 @@ class MapVotingService {
         return recentMapIds;
     }
 
+    async getRecentExcludedMapIds(allMaps) {
+        const canonicalMapLookup = this.buildCanonicalMapLookup(allMaps);
+        let recentMapIds = new Set();
+        try {
+            const historyResponse = await this.crcon.getMapHistory();
+            if (historyResponse?.result && Array.isArray(historyResponse.result)) {
+                const recentMaps = historyResponse.result.slice(0, this.excludeRecentMaps);
+                recentMapIds = this.getRecentMapIds(recentMaps, canonicalMapLookup);
+                if (recentMapIds.size > 0) {
+                    logger.info(`[MapVoting S${this.serverNum}] Excluding ${recentMapIds.size} recent map IDs: ${[...recentMapIds].join(', ')}`);
+                }
+            }
+        } catch (e) {
+            logger.warn(`[MapVoting S${this.serverNum}] Could not fetch map history: ${e.message}`);
+        }
+
+        return recentMapIds;
+    }
+
     async getMapsToVote() {
         try {
             const allMaps = await this.getAllMaps();
@@ -690,23 +709,7 @@ class MapVotingService {
                 return null;
             }
 
-            const canonicalMapLookup = this.buildCanonicalMapLookup(allMaps);
-
-            // Get recent maps to exclude
-            let recentMapIds = new Set();
-            try {
-                const historyResponse = await this.crcon.getMapHistory();
-                if (historyResponse?.result && Array.isArray(historyResponse.result)) {
-                    // Get the last N maps played (excludeRecentMaps setting)
-                    const recentMaps = historyResponse.result.slice(0, this.excludeRecentMaps);
-                    recentMapIds = this.getRecentMapIds(recentMaps, canonicalMapLookup);
-                    if (recentMapIds.size > 0) {
-                        logger.info(`[MapVoting S${this.serverNum}] Excluding ${recentMapIds.size} recent map IDs: ${[...recentMapIds].join(', ')}`);
-                    }
-                }
-            } catch (e) {
-                logger.warn(`[MapVoting S${this.serverNum}] Could not fetch map history: ${e.message}`);
-            }
+            const recentMapIds = await this.getRecentExcludedMapIds(allMaps);
 
             // Use effective whitelist (schedule's or CRCON's)
             const whitelist = await this.getEffectiveWhitelist();
@@ -795,6 +798,43 @@ class MapVotingService {
         } catch (error) {
             logger.error(`[MapVoting S${this.serverNum}] Error getting maps to vote:`, error.message);
             return [];
+        }
+    }
+
+    async applyNonSeededRotation() {
+        try {
+            const nonSeededMapList = configManager.getNonSeededMapList(this.serverNum);
+            if (!nonSeededMapList.length) {
+                return false;
+            }
+
+            const allMaps = await this.getAllMaps();
+            if (!allMaps?.length) {
+                return false;
+            }
+
+            const desiredMapIds = new Set(nonSeededMapList);
+            const configuredMaps = allMaps.filter(map => desiredMapIds.has(map.id) && !this.blacklist.includes(map.id));
+            if (!configuredMaps.length) {
+                logger.warn(`[MapVoting S${this.serverNum}] Non-seeded map list is configured but no valid maps are currently available`);
+                return false;
+            }
+
+            const recentMapIds = await this.getRecentExcludedMapIds(allMaps);
+            const eligibleMaps = configuredMaps.filter(map => !recentMapIds.has(map.id));
+            const selectionPool = eligibleMaps.length > 0 ? eligibleMaps : configuredMaps;
+            const selectedMap = selectionPool[Math.floor(Math.random() * selectionPool.length)];
+
+            if (!selectedMap) {
+                return false;
+            }
+
+            await this.crcon.post('set_map_rotation', { map_names: [selectedMap.id] });
+            logger.info(`[MapVoting S${this.serverNum}] Applied non-seeded rotation map: ${selectedMap.id}`);
+            return true;
+        } catch (error) {
+            logger.error(`[MapVoting S${this.serverNum}] Failed to apply non-seeded rotation: ${error.message}`);
+            return false;
         }
     }
 
@@ -982,7 +1022,6 @@ class MapVotingService {
 
     async doMapVote() {
         if (this.destroyed) return;
-        if (!this.voteMapActive) return;
         if (this.isRunning) return;
 
         this.isRunning = true;
@@ -1017,6 +1056,8 @@ class MapVotingService {
             }
 
             const currentPlayers = status.result.current_players || 0;
+            const wasSeeded = this.seeded;
+            const votingEnabled = this.voteMapActive;
 
             if (currentPlayers >= this.minimumPlayers && !this.seeded) {
                 logger.info(`[MapVoting S${this.serverNum}] Server reached ${this.minimumPlayers} players!`);
@@ -1028,7 +1069,15 @@ class MapVotingService {
                 this.seeded = false;
             }
 
-            if (this.seeded) {
+            const justDroppedOutOfSeeded = wasSeeded && !this.seeded;
+
+            if (justDroppedOutOfSeeded && this.voteActive) {
+                logger.info(`[MapVoting S${this.serverNum}] Seeded state lost while vote active, finalizing current vote`);
+                await this.stopVote();
+                this.lastReminderTime = null;
+            }
+
+            if (votingEnabled && this.seeded) {
                 if (this.gameActive && !this.voteActive) {
                     logger.info(`[MapVoting S${this.serverNum}] Starting vote...`);
                     await this.clearAllMessages();
@@ -1045,11 +1094,15 @@ class MapVotingService {
                     this.sendSeedingMessage = true;
                 }
             } else {
-                if (this.sendSeedingMessage) {
+                if (votingEnabled && this.sendSeedingMessage) {
                     await this.clearAllMessages();
                     await this.sendSeedingMsg();
                     this.voteActive = false;
                     this.sendSeedingMessage = false;
+                }
+
+                if (matchEnded) {
+                    await this.applyNonSeededRotation();
                 }
             }
         } catch (error) {
@@ -1164,6 +1217,7 @@ class MapVotingService {
             modeWeights: this.modeWeights,
             blacklist: this.blacklist,
             excludeRecentMaps: this.excludeRecentMaps,
+            nonSeededMapListCount: configManager.getNonSeededMapList(this.serverNum).length,
             // Schedule info
             activeSchedule: {
                 id: schedule.scheduleId,

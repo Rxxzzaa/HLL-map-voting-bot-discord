@@ -20,7 +20,8 @@ const automodPresetManager = require('./services/automodPresetManager');
 const { registerCommands } = require('./commands/register');
 const {
     isMapVoteToggleButton,
-    getScheduleWhitelistServerNum
+    getScheduleWhitelistServerNum,
+    getNonSeededWhitelistServerNum
 } = require('./utils/buttonRouting');
 
 // Create Discord client
@@ -699,6 +700,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await interaction.deferUpdate();
                 const generalSettings = await getLiveGeneralSettings(crcon, serverNum);
                 const panel = mapVotePanelService.buildSettingsPanel(service, generalSettings);
+                await updatePanelMessage(interaction, panel);
+            }
+
+            else if (customId === 'mapvote_non_seeded_maps' || customId.startsWith('mapvote_non_seeded_maps_')) {
+                await interaction.deferUpdate();
+                const existingList = configManager.getNonSeededMapList(serverNum);
+                if (existingList.length === 0) {
+                    try {
+                        const mapsResponse = await crcon.getMaps();
+                        const defaultMapList = (mapsResponse?.result || []).map(map => map.id);
+                        configManager.setNonSeededMapList(serverNum, defaultMapList);
+                    } catch (error) {
+                        logger.error(`[Interaction] Failed to initialize non-seeded map list for server ${serverNum}:`, error);
+                    }
+                }
+                const panel = await mapVotePanelService.buildNonSeededMapListPanel(serverNum, crcon);
                 await updatePanelMessage(interaction, panel);
             }
 
@@ -1781,6 +1798,51 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await updatePanelMessage(interaction, panel);
                 }
             }
+
+            else if (customId.startsWith('nonseed_wl_')) {
+                const nonSeedServerNum = getNonSeededWhitelistServerNum(customId);
+                const crcon = nonSeedServerNum ? crconServices[nonSeedServerNum] : null;
+                if (!crcon) {
+                    return interaction.reply({ content: 'CRCON service not available.', flags: MessageFlags.Ephemeral });
+                }
+
+                const parts = customId.split('_');
+                const srvNum = parseInt(parts[3], 10);
+
+                if (customId.startsWith('nonseed_wl_fill_')) {
+                    await interaction.deferUpdate();
+                    const mapsResponse = await crcon.getMaps();
+                    const allMaps = (mapsResponse?.result || []).map(map => map.id);
+                    configManager.setNonSeededMapList(srvNum, allMaps);
+                    const panel = await mapVotePanelService.buildNonSeededMapListPanel(srvNum, crcon);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                else if (customId.startsWith('nonseed_wl_clear_')) {
+                    await interaction.deferUpdate();
+                    configManager.setNonSeededMapList(srvNum, []);
+                    const panel = await mapVotePanelService.buildNonSeededMapListPanel(srvNum, crcon);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                else if (customId.startsWith('nonseed_wl_filter_')) {
+                    const filterType = parts[4];
+                    const filter = filterType === 'all' ? null : filterType;
+                    await interaction.deferUpdate();
+                    const panel = await mapVotePanelService.buildNonSeededMapListPanel(srvNum, crcon, 0, filter);
+                    await updatePanelMessage(interaction, panel);
+                }
+
+                else if (customId.startsWith('nonseed_wl_prev_') || customId.startsWith('nonseed_wl_next_')) {
+                    const currentPage = parseInt(parts[4], 10);
+                    const filterType = parts[5];
+                    const filter = filterType === 'all' ? null : filterType;
+                    const newPage = customId.includes('_prev_') ? currentPage - 1 : currentPage + 1;
+                    await interaction.deferUpdate();
+                    const panel = await mapVotePanelService.buildNonSeededMapListPanel(srvNum, crcon, newPage, filter);
+                    await updatePanelMessage(interaction, panel);
+                }
+            }
         }
 
         // ========== SELECT MENU INTERACTIONS ==========
@@ -2259,6 +2321,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 schedulePanel.toggleScheduleWhitelistMaps(srvNum, scheduleId, mapIds, allMaps);
 
                 const panel = await schedulePanel.buildScheduleWhitelistPanel(srvNum, scheduleId, crcon);
+                await updatePanelMessage(interaction, panel);
+            }
+
+            else if (customId.startsWith('nonseed_wl_toggle_')) {
+                const srvNum = parseInt(customId.split('_')[3], 10);
+                const mapIds = interaction.values;
+                const crcon = crconServices[srvNum] || crconServices[1];
+                const currentList = configManager.getNonSeededMapList(srvNum);
+                const updatedSet = new Set(currentList);
+
+                for (const mapId of mapIds) {
+                    if (updatedSet.has(mapId)) {
+                        updatedSet.delete(mapId);
+                    } else {
+                        updatedSet.add(mapId);
+                    }
+                }
+
+                await interaction.deferUpdate();
+                configManager.setNonSeededMapList(srvNum, [...updatedSet]);
+                const panel = await mapVotePanelService.buildNonSeededMapListPanel(srvNum, crcon);
                 await updatePanelMessage(interaction, panel);
             }
 
