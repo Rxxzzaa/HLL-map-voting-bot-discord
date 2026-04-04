@@ -90,6 +90,7 @@ class MapVotingService {
         this.statusFailureCount = 0;
         this.statusBackoffUntil = 0;
         this.lastStatusFailureLogAt = 0;
+        this.lastServerStatus = null;
     }
 
     // ==================== INITIALIZATION ====================
@@ -734,6 +735,63 @@ class MapVotingService {
         return recentMapIds;
     }
 
+    resolveMapIdFromPayload(mapPayload, canonicalMapLookup) {
+        if (!mapPayload) {
+            return null;
+        }
+
+        const aliases = [
+            mapPayload?.map_id,
+            mapPayload?.id,
+            mapPayload?.name,
+            mapPayload?.pretty_name,
+            mapPayload?.map?.id,
+            mapPayload?.map?.name,
+            mapPayload?.map?.pretty_name
+        ]
+            .map(value => this.normalizeMapKey(value))
+            .filter(Boolean);
+
+        for (const alias of aliases) {
+            const canonicalId = canonicalMapLookup.get(alias) || alias;
+            if (canonicalId) {
+                return canonicalId;
+            }
+        }
+
+        return null;
+    }
+
+    async getCurrentMapId(allMaps, canonicalMapLookup = this.buildCanonicalMapLookup(allMaps)) {
+        const resolveCurrentMapId = (statusPayload) => {
+            if (!statusPayload?.result) {
+                return null;
+            }
+
+            return this.resolveMapIdFromPayload(
+                statusPayload.result.map || statusPayload.result.current_map || statusPayload.result,
+                canonicalMapLookup
+            );
+        };
+
+        const cachedCurrentMapId = resolveCurrentMapId(this.lastServerStatus);
+        if (cachedCurrentMapId) {
+            return cachedCurrentMapId;
+        }
+
+        if (typeof this.crcon?.getStatus === 'function') {
+            try {
+                const liveStatus = await this.crcon.getStatus();
+                this.lastServerStatus = liveStatus;
+                return resolveCurrentMapId(liveStatus);
+            } catch (error) {
+                logger.warn(`[MapVoting S${this.serverNum}] Could not fetch current map for exclusion: ${error.message}`);
+            }
+        }
+
+        return null;
+    }
+
     async getRecentExcludedMapIds(allMaps) {
         const canonicalMapLookup = this.buildCanonicalMapLookup(allMaps);
         let recentMapIds = new Set();
@@ -742,12 +800,14 @@ class MapVotingService {
             if (historyResponse?.result && Array.isArray(historyResponse.result)) {
                 const recentMaps = historyResponse.result.slice(0, this.excludeRecentMaps);
                 recentMapIds = this.getRecentMapIds(recentMaps, canonicalMapLookup);
-                if (recentMapIds.size > 0) {
-                    logger.info(`[MapVoting S${this.serverNum}] Excluding ${recentMapIds.size} recent map IDs: ${[...recentMapIds].join(', ')}`);
-                }
             }
         } catch (e) {
             logger.warn(`[MapVoting S${this.serverNum}] Could not fetch map history: ${e.message}`);
+        }
+
+        const currentMapId = await this.getCurrentMapId(allMaps, canonicalMapLookup);
+        if (currentMapId) {
+            recentMapIds.add(currentMapId);
         }
 
         return recentMapIds;
@@ -761,6 +821,11 @@ class MapVotingService {
             }
 
             const recentMapIds = await this.getRecentExcludedMapIds(allMaps);
+            const currentMapId = await this.getCurrentMapId(allMaps);
+
+            if (recentMapIds.size > 0) {
+                logger.info(`[MapVoting S${this.serverNum}] Excluding ${recentMapIds.size} recent map IDs: ${[...recentMapIds].join(', ')}`);
+            }
 
             // Use effective whitelist (schedule's or CRCON's)
             const whitelist = await this.getEffectiveWhitelist();
@@ -845,6 +910,11 @@ class MapVotingService {
 
             const mapNames = result.map(m => m.id).join(', ');
             logger.info(`[MapVoting S${this.serverNum}] Selected ${result.length} maps for vote: ${mapNames}`);
+
+            if (currentMapId && result.some(map => map.id === currentMapId)) {
+                logger.warn(`[MapVoting S${this.serverNum}] Selected map list still includes current map: ${currentMapId}`);
+            }
+
             return result;
         } catch (error) {
             logger.error(`[MapVoting S${this.serverNum}] Error getting maps to vote:`, error.message);
@@ -973,6 +1043,9 @@ class MapVotingService {
 
     async setVoteResult() {
         try {
+            const allMaps = await this.getAllMaps();
+            const recentMapIds = allMaps?.length > 0 ? await this.getRecentExcludedMapIds(allMaps) : new Set();
+            const currentMapId = allMaps?.length > 0 ? await this.getCurrentMapId(allMaps) : null;
             const mapResults = await this.getResults();
             let mapId = null;
 
@@ -988,6 +1061,15 @@ class MapVotingService {
             }
 
             if (mapId) {
+                const recentExcludedSummary = recentMapIds.size > 0 ? [...recentMapIds].join(', ') : 'none';
+                logger.info(
+                    `[MapVoting S${this.serverNum}] Vote finalization context: currentMap=${currentMapId || 'unknown'} recentExcluded=${recentExcludedSummary} selected=${mapId}`
+                );
+
+                if (currentMapId && mapId === currentMapId) {
+                    logger.warn(`[MapVoting S${this.serverNum}] Selected next map matches current map: ${mapId}`);
+                }
+
                 logger.info(`[MapVoting S${this.serverNum}] Setting next map: ${mapId}`);
                 await this.crcon.post('set_map_rotation', { map_names: [mapId] });
             } else {
@@ -1100,6 +1182,7 @@ class MapVotingService {
             }
 
             const status = await this.getServerStatus();
+            this.lastServerStatus = status;
             if (!status || !status.result) {
                 this.isRunning = false;
                 this.doingMapVote = false;
